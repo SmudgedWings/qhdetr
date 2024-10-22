@@ -19,16 +19,16 @@ class AMP(nn.Module):   # c,h,w -> q,h,w
     def __init__(self, in_channels=256, q=300, groups=32, tau=1.2):
         super(AMP, self).__init__()
         self.conv1 = SeparableConv2dLSQ(in_channels, in_channels, kernel_size=5, padding=2, nbits_w=4)
-        # self.conv2 = Conv2dLSQ(in_channels, in_channels, kernel_size=3, padding=1, nbits_w=4)
+        self.conv2 = SeparableConv2dLSQ(in_channels, in_channels, kernel_size=3, padding=1, nbits_w=4)
         self.conv3 = SeparableConv2dLSQ(in_channels, q, kernel_size=3, padding=1, nbits_w=4)
         self.gn1 = nn.GroupNorm(groups, in_channels)
-        # self.gn2 = nn.GroupNorm(groups, in_channels)
+        self.gn2 = nn.GroupNorm(groups, in_channels)
         self.relu = nn.ReLU(inplace=True)
         self.tau = tau 
 
     def forward(self, x):
         x = self.relu(self.gn1(self.conv1(x)))
-        # x = self.relu(self.gn2(self.conv2(x)))
+        x = self.relu(self.gn2(self.conv2(x)))
         x = self.conv3(x)
         # 对空间维度进行softmax归一化
         x = x * self.tau

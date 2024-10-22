@@ -165,7 +165,7 @@ class SACO(nn.Module):
         return Q
     
 def convert_to_rois(outputs_coord, feature_shape):
-    batch_size, _ = outputs_coord.shape
+    batch_size, q, _ = outputs_coord.shape
     height, width = feature_shape
 
     # 将中心坐标和宽高转换为左上角和右下角坐标
@@ -186,8 +186,8 @@ def convert_to_rois(outputs_coord, feature_shape):
     y2 = torch.clamp(y2, 0, height)
 
     # 拼接坐标到形状为 [batch_size, 5]
-    rois = torch.stack([x1, y1, x2, y2], dim=-1).view(batch_size, 4)
-    batch_idx = torch.arange(batch_size, device=outputs_coord.device).view(-1, 1)
-    rois = torch.cat((batch_idx, rois), dim=1)
+    rois = torch.stack([x1, y1, x2, y2], dim=-1)
+    batch_idx = torch.arange(batch_size, device=outputs_coord.device).view(-1, 1, 1).expand(batch_size, q, 1)
+    rois = torch.cat((batch_idx, rois), dim=-1).view(batch_size * q, 5)
 
     return rois
