@@ -25,4 +25,4 @@ sleep 10
 ps aux | grep 'main.py' | grep -v 'grep' | awk '{print $2}' > ./scripts/${task_name}.pid
 
 
-cat ./${task_name}.pid | xargs kill
+# cat ./qhdetr_sapm1.pid | xargs kill

@@ -23,12 +23,12 @@ class AMP(nn.Module):   # c,h,w -> q,h,w
         self.conv3 = SeparableConv2dLSQ(in_channels, q, kernel_size=3, padding=1, nbits_w=4)
         self.gn1 = nn.GroupNorm(groups, in_channels)
         self.gn2 = nn.GroupNorm(groups, in_channels)
-        self.relu = nn.ReLU(inplace=True)
+        self.prelu = nn.PReLU()
         self.tau = tau 
 
     def forward(self, x):
-        x = self.relu(self.gn1(self.conv1(x)))
-        x = self.relu(self.gn2(self.conv2(x)))
+        x = self.prelu(self.gn1(self.conv1(x)))  # 使用 PReLU
+        x = self.prelu(self.gn2(self.conv2(x)))  # 使用 PReLU
         x = self.conv3(x)
         # 对空间维度进行softmax归一化
         x = x * self.tau
@@ -63,11 +63,11 @@ class CR(nn.Module):
         super(CR, self).__init__()
         self.fc1 = LinearLSQ(in_channels, in_channels, nbits_w=4, bias=True)
         self.fc2 = LinearLSQ(in_channels, in_channels, nbits_w=4, bias=True)
-        self.relu = nn.ReLU(inplace=True)
+        self.prelu = nn.PReLU()
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
-        x = self.relu(self.fc1(x))
+        x = self.prelu(self.fc1(x))
         x = self.sigmoid(self.fc2(x))
         return x
     
