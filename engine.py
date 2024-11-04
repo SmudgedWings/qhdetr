@@ -69,7 +69,6 @@ def get_current_consistency_weight(current, rampup_length, top):
 
 def train_hybrid(outputs, targets, k_one2many, criterion, lambda_one2many):
     # one-to-one-loss
-    # pdb.set_trace()
     loss_dict = criterion(outputs, targets)
     multi_targets = copy.deepcopy(targets)
     # repeat the targets
