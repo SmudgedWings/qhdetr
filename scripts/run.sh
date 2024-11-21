@@ -1,6 +1,6 @@
 #!/bin/bash
 
-task_name=qhdetr_sapm1  # 请替换为你的任务名称
+task_name=qhdetr  # 请替换为你的任务名称
 
 find_unused_port() {
     while true; do

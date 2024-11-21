@@ -15,8 +15,8 @@ class SeparableConv2dLSQ(nn.Module):
         x = self.pointwise(x)
         return x
     
-class AMP(nn.Module):   # c,h,w -> q,h,w
-    def __init__(self, in_channels=256, q=300, groups=32, tau=1.2):
+class AMP(nn.Module):   # c,h,w -> 1,h,w
+    def __init__(self, in_channels=256, q=1, groups=32, tau=1.2):
         super(AMP, self).__init__()
         self.conv1 = SeparableConv2dLSQ(in_channels, in_channels, kernel_size=5, padding=2, nbits_w=4)
         self.conv2 = SeparableConv2dLSQ(in_channels, in_channels, kernel_size=3, padding=1, nbits_w=4)
@@ -34,7 +34,7 @@ class AMP(nn.Module):   # c,h,w -> q,h,w
         x = x * self.tau
         h = x.size(2)
         w = x.size(3)
-        x = x.view(x.size(0), x.size(1), -1)  # (batch_size, q, h*w)
+        x = x.flatten(start_dim=2)  # (batch_size, q, h*w)
         x = F.softmax(x, dim=2)  # 对h*w维度进行softmax
         x = x.view(x.size(0), x.size(1), h, w)  # 还原回(batch_size, q, h, w)
         return x
@@ -53,7 +53,8 @@ class WP(nn.Module):
         A = A.view(batch_size, q, h * w)  # (batch_size, q, h*w)
 
         A = self.A_act(A)
-        F = self.A_act(F)
+        # print(self.A_act.alpha)
+        F = self.F_act(F)
         F_P = torch.bmm(A, F)  # (batch_size, q, c)
         
         return F_P

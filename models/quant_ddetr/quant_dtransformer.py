@@ -26,6 +26,28 @@ import pdb
 from .quant_sapm_separableconv import *
 from torchvision.ops import RoIAlign
 
+def save_decoder_layer_output_as_3d_image(output_tensor, file_path="decoder_layer_output_3d_visualization.png"):
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.mplot3d import Axes3D
+    # 移除batch维度，得到 (1800, 256) 的矩阵
+    output = output_tensor.squeeze(0).detach().cpu().numpy()
+    fig = plt.figure(figsize=(16, 10))
+    ax = fig.add_subplot(111, projection='3d')
+    x = np.arange(output.shape[0])  # 1800个tokens位置
+    y = np.arange(output.shape[1])  # 256个特征维度
+    X, Y = np.meshgrid(x, y)
+    Z = output.T  # 转置为 (256, 1800) 以匹配X和Y的维度
+    surf = ax.plot_surface(X, Y, Z, cmap='viridis', edgecolor='none')
+    ax.set_title("3D Visualization of Decoder Layer Output")
+    ax.set_xlabel("Token Position (1800)")
+    ax.set_ylabel("Feature Dimension (256)")
+    ax.set_zlabel("Feature Value")
+
+    plt.savefig(file_path, format="png")
+    plt.close()
+    print(f"图像已保存到: {file_path}")
+
 class DeformableTransformer(nn.Module):
     def __init__(
         self,
@@ -542,6 +564,37 @@ def reverse_restore_feature_maps(src, src_spatial_shapes, bs, channels):
         start_index = end_index
     return features
 
+def plot_histogram_with_stats(tensor, save_path):
+ 
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    
+    output_flat = tensor.cpu().numpy().flatten()
+    
+    # 创建绘图
+    plt.figure(figsize=(6, 4))
+    sns.histplot(output_flat, bins=500, kde=True, color="skyblue", stat="count")
+
+    plt.xlim((-1, 1))
+    
+    # 计算均值和标准差
+    mean = np.mean(output_flat)
+    std_dev = np.std(output_flat)
+    
+    # 添加均值和标准差到图中
+    plt.title("quantizated output")
+    plt.xlabel("values")
+    plt.ylabel("count")
+    plt.text(0.05, max(plt.gca().get_ylim()) * 0.8, f"mean: {mean:.5f}\nstd: {std_dev:.5f}", fontsize=10)
+    
+    # 去除网格线
+    plt.grid(False)
+    
+    # 保存图像到指定路径
+    plt.savefig(save_path, bbox_inches='tight')
+    plt.close()  # 关闭图像以释放内存
+
 class DeformableTransformerDecoder(nn.Module):
     def __init__(
         self,
@@ -643,11 +696,23 @@ class DeformableTransformerDecoder(nn.Module):
                 # Q_c_local = self.sapm_local(pooled_features).view(bs, -1, channels) # [2*300, 1, 256] -> [2, 300, 256]
 
                 # only finel feature
+                # features[3] 1x256x13x19
                 rois = convert_to_rois(outputs_coord,src_spatial_shapes[3]) # [2*300, 5]
                 pooled_feature = self.roi_align(features[3], rois)  # [2*300, 256, 7, 7]
-                Q_c_local = self.sapm_local(pooled_feature).view(bs, -1, channels)
                 
+                Q_c_local = self.sapm_local(pooled_feature).view(bs, -1, channels)
+                # if not torch.all(Q_c_local == 0.0):
+                #     print("++++++++++++++++++")
+                # print(torch.all(Q_c_local == 0.0))
+                # if lid==5:
+                #     import pdb;pdb.set_trace()
+                #     plot_histogram_with_stats(output,'/data/zhangbilang/qhdetr20241018/scripts/6th_output_his_wo_local')
+                #     plot_histogram_with_stats(Q_c_local,'/data/zhangbilang/qhdetr20241018/scripts/6th_local')
+
                 output = Q_c_local + output
+                # if lid==5:
+                #     plot_histogram_with_stats(output,'/data/zhangbilang/qhdetr20241018/scripts/6th_output_his_with_local')
+                #     import pdb;pdb.set_trace()
 
             # hack implementation for iterative bounding box refinement
             if self.bbox_embed is not None:

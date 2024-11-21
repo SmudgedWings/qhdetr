@@ -43,6 +43,37 @@ import pdb
 def _get_clones(module, N):
     return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
 
+def plot_references_on_image(references, image, image_size, level, save_path):
+    import matplotlib.pyplot as plt
+    """
+    在输入图像上绘制指定层级的 reference 点并保存到本地。
+    
+    参数:
+    - references (torch.Tensor): 归一化的 reference 坐标, 形状为 [batch_size, num_queries, 2 或 4]。
+    - image (np.ndarray): 输入图像数组，形状为 (H, W, 3)。
+    - image_size (tuple): 图像的尺寸 (width, height)。
+    - level (int): 当前参考点的 decoder 层数。
+    - save_path (str): 保存图像的本地路径。
+    """
+    img_width, img_height = image_size
+
+    if references.dim() == 2:  # 若 references 为二维，添加一个维度
+        references = references.unsqueeze(0)
+
+    ref_points = references[..., :2].detach().cpu().numpy()
+    x_points = (ref_points[:, :, 0] * img_width).flatten()
+    y_points = (ref_points[:, :, 1] * img_height).flatten()
+
+    plt.figure(figsize=(10, 8))
+    plt.imshow(image)
+    plt.scatter(x_points, y_points, color="red", s=10, alpha=0.6, label=f'Decoder Layer {level}')
+    plt.xlabel("X Coordinate")
+    plt.ylabel("Y Coordinate")
+    plt.title(f"Reference Points for Decoder Layer {level} on Input Image")
+    plt.legend()
+    plt.axis('off')
+    plt.savefig(f"{save_path}_layer_{level}.png")
+    plt.close() 
 
 class DeformableDETR(nn.Module):
     """ This is the Deformable DETR module that performs object detection """
@@ -174,8 +205,8 @@ class DeformableDETR(nn.Module):
                                 dictionnaries containing the two above keys for each decoder layer.
         """
         if not isinstance(samples, NestedTensor):
-            samples = nested_tensor_from_tensor_list(samples)
-        features, pos = self.backbone(samples)
+            samples = nested_tensor_from_tensor_list(samples)   # 1 3 800 1201
+        features, pos = self.backbone(samples)  # features:1x512x100x151 1x12024x50x76 1x2048x25x38
 
         srcs = []
         masks = []
@@ -199,6 +230,7 @@ class DeformableDETR(nn.Module):
                 srcs.append(src)
                 masks.append(mask)
                 pos.append(pos_l)
+        # src: 1x256x100x151 1x256x50x76 1x256x25x38 1x256x13x19
 
         query_embeds = None
         if not self.two_stage or self.mixed_selection:
@@ -239,6 +271,12 @@ class DeformableDETR(nn.Module):
                 assert reference.shape[-1] == 2
                 tmp[..., :2] += reference
             outputs_coord = tmp.sigmoid()
+           
+            # image_tensor = samples.tensors[0]  # 假设 batch size 为 1
+            # image = image_tensor.permute(1, 2, 0).cpu().numpy()  # 转为 H x W x C 格式
+            # image_size = (image.shape[1], image.shape[0])  # (width, height)
+            # reference_coord = reference.sigmoid() 
+            # plot_references_on_image(reference_coord[0], image, image_size, lvl+1, save_path="/data/zhangbilang/qhdetr20241018/scripts/reference_points")
 
             outputs_classes_one2one.append(
                 outputs_class[:, 0 : self.num_queries_one2one]
