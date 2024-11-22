@@ -408,9 +408,9 @@ class QuantMultiheadAttention(nn.Module):
         self.v_act = ActLSQ(nbits_a=4, in_features=num_heads)
         self.attn_act = ActLSQ(nbits_a=4, in_features=num_heads)
 
-        self.qf_act = ActLSQ(nbits_a=4, in_features=num_heads)
-        self.kf_act = ActLSQ(nbits_a=4, in_features=num_heads)
-        self.vf_act = ActLSQ(nbits_a=4, in_features=num_heads)
+        self.qf_act = ActLSQ(nbits_a=4, in_features=embed_dim)
+        self.kf_act = ActLSQ(nbits_a=4, in_features=embed_dim)
+        self.vf_act = ActLSQ(nbits_a=4, in_features=embed_dim)
 
 
         self.in_proj = LinearLSQ(embed_dim, embed_dim * 3, nbits_w = n_bit, bias=True)

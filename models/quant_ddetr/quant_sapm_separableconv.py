@@ -23,37 +23,38 @@ class AMP(nn.Module):   # c,h,w -> 1,h,w
         self.conv3 = SeparableConv2dLSQ(in_channels, q, kernel_size=3, padding=1, nbits_w=4)
         self.gn1 = nn.GroupNorm(groups, in_channels)
         self.gn2 = nn.GroupNorm(groups, in_channels)
-        self.prelu = nn.PReLU()
+        self.prelu1 = nn.PReLU()
+        self.prelu2 = nn.PReLU()
         self.tau = tau 
 
     def forward(self, x):
-        x = self.prelu(self.gn1(self.conv1(x)))  # 使用 PReLU
-        x = self.prelu(self.gn2(self.conv2(x)))  # 使用 PReLU
+        x = self.prelu1(self.gn1(self.conv1(x)))  # 使用 PReLU
+        x = self.prelu2(self.gn2(self.conv2(x)))  # 使用 PReLU
         x = self.conv3(x)
         # 对空间维度进行softmax归一化
-        x = x * self.tau
-        h = x.size(2)
-        w = x.size(3)
+        _, _, h, w = x.size()
         x = x.flatten(start_dim=2)  # (batch_size, q, h*w)
-        x = F.softmax(x, dim=2)  # 对h*w维度进行softmax
+        x = F.softmax(x * self.tau, dim=2)  # 对h*w维度进行softmax
         x = x.view(x.size(0), x.size(1), h, w)  # 还原回(batch_size, q, h, w)
         return x
     
 class WP(nn.Module):
     def __init__(self):
         super(WP, self).__init__()
-        self.A_act = ActLSQ(nbits_a=4,in_features=8)
-        self.F_act = ActLSQ(nbits_a=4,in_features=8)
+        # self.A_act = ActLSQ(nbits_a=4, in_features=49) # h*w
+        self.A_act = ActLSQ(nbits_a=4, in_features=49, mode=Qmodes.kernel_wise) # h*w
+        self.F_act = ActLSQ(nbits_a=4, in_features=256) # c
 
     def forward(self, F, A):
+        # A: b x h*w     F: b x h*w x c  O: b x c
         batch_size, c, h, w = F.size()
         q = A.size(1)
         
         F = F.view(batch_size, c, h * w).permute(0, 2, 1)  # (batch_size, h*w, c)
-        A = A.view(batch_size, q, h * w)  # (batch_size, q, h*w)
+        A = A.view(batch_size, q, h * w)  # (batch_size, q, h*w)             
 
         A = self.A_act(A)
-        # print(self.A_act.alpha)
+        print(self.A_act.alpha)
         F = self.F_act(F)
         F_P = torch.bmm(A, F)  # (batch_size, q, c)
         
@@ -78,8 +79,8 @@ class SAPM(nn.Module):
         self.amp = AMP(in_channels, q, groups, tau)
         self.wp = WP()
         self.cr = CR(in_channels)
-        self.F_C_act = ActLSQ(nbits_a=4,in_features=8)
-        self.F_P_act = ActLSQ(nbits_a=4,in_features=8)
+        self.F_C_act = ActLSQ(nbits_a=4,in_features=in_channels)
+        self.F_P_act = ActLSQ(nbits_a=4,in_features=in_channels)
 
     def forward(self, F):
         A = self.amp(F)
@@ -89,6 +90,7 @@ class SAPM(nn.Module):
         F_C = self.F_C_act(F_C)
         F_P = self.F_P_act(F_P)
 
+        # F_P: b x q x c 
         F_O = F_C * F_P
         return F_O
     

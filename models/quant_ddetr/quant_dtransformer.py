@@ -703,7 +703,7 @@ class DeformableTransformerDecoder(nn.Module):
                 Q_c_local = self.sapm_local(pooled_feature).view(bs, -1, channels)
                 # if not torch.all(Q_c_local == 0.0):
                 #     print("++++++++++++++++++")
-                # print(torch.all(Q_c_local == 0.0))
+                print(torch.all(Q_c_local == 0.0))
                 # if lid==5:
                 #     import pdb;pdb.set_trace()
                 #     plot_histogram_with_stats(output,'/data/zhangbilang/qhdetr20241018/scripts/6th_output_his_wo_local')
