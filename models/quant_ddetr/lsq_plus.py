@@ -304,8 +304,8 @@ class MCF_Function(torch.autograd.Function):
 
 
 class ActLSQ(_ActQ):
-    def __init__(self, in_features, nbits_a=4, mode=Qmodes.layer_wise, **kwargs):
-        super(ActLSQ, self).__init__(in_features=in_features, nbits=nbits_a, mode=mode)
+    def __init__(self, in_features, nbits_a=4, mode=Qmodes.layer_wise, is_symmetric=False, **kwargs):
+        super(ActLSQ, self).__init__(in_features=in_features, nbits=nbits_a, mode=mode,is_symmetric=is_symmetric)
         # print(self.alpha.shape, self.zero_point.shape)
     def forward(self, x):
         if self.alpha is None:

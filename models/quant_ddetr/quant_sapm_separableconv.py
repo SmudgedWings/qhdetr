@@ -41,8 +41,8 @@ class AMP(nn.Module):   # c,h,w -> 1,h,w
 class WP(nn.Module):
     def __init__(self):
         super(WP, self).__init__()
-        # self.A_act = ActLSQ(nbits_a=4, in_features=49) # h*w
-        self.A_act = ActLSQ(nbits_a=4, in_features=49, mode=Qmodes.kernel_wise) # h*w
+        self.A_act = ActLSQ(nbits_a=4, in_features=49, is_symmetric=True) # h*w
+        # self.A_act = ActLSQ(nbits_a=4, in_features=49, mode=Qmodes.kernel_wise) # h*w
         self.F_act = ActLSQ(nbits_a=4, in_features=256) # c
 
     def forward(self, F, A):

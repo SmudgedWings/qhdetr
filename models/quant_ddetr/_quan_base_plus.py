@@ -212,6 +212,7 @@ class _ActQ(nn.Module):
         # if in_features == 8:
         #     pdb.set_trace()
         self.q_mode = kwargs_q['mode']
+        is_symmetric = kwargs_q.get('is_symmetric', False)
         self.alpha = Parameter(torch.Tensor(1))
         self.zero_point = Parameter(torch.Tensor([0]))
         if self.q_mode == Qmodes.kernel_wise:
@@ -220,7 +221,10 @@ class _ActQ(nn.Module):
             torch.nn.init.zeros_(self.zero_point)
         # self.zero_point = Parameter(torch.Tensor([0]))
         self.register_buffer('init_state', torch.zeros(1))
-        self.register_buffer('signed', torch.zeros(1))
+        if is_symmetric:
+            self.register_buffer('signed', torch.ones(1))
+        else:
+            self.register_buffer('signed', torch.zeros(1))
 
     def add_param(self, param_k, param_v):
         self.kwargs_q[param_k] = param_v
