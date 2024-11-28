@@ -41,8 +41,8 @@ class AMP(nn.Module):   # c,h,w -> 1,h,w
 class WP(nn.Module):
     def __init__(self):
         super(WP, self).__init__()
-        self.A_act = ActLSQ(nbits_a=4, in_features=49, is_symmetric=True) # h*w
-        # self.A_act = ActLSQ(nbits_a=4, in_features=49, mode=Qmodes.kernel_wise) # h*w
+        # self.A_act = ActLSQ(nbits_a=4, in_features=49, is_symmetric=True) # h*w
+        self.A_act = ActLSQ(nbits_a=4, in_features=49, is_symmetric=True, mode=Qmodes.kernel_wise) # h*w
         self.F_act = ActLSQ(nbits_a=4, in_features=256) # c
 
     def forward(self, F, A):
@@ -54,7 +54,7 @@ class WP(nn.Module):
         A = A.view(batch_size, q, h * w)  # (batch_size, q, h*w)             
 
         A = self.A_act(A)
-        print(self.A_act.alpha)
+        # print(self.A_act.alpha)
         F = self.F_act(F)
         F_P = torch.bmm(A, F)  # (batch_size, q, c)
         
