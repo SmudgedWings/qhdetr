@@ -2,7 +2,7 @@
 
 set -x
 
-EXP_DIR=exps/LIEM
+EXP_DIR=exps/LIEM-signed-kernel
 PY_ARGS=${@:1}
 
 python -u main.py \
@@ -10,8 +10,8 @@ python -u main.py \
     --with_box_refine \
     --two_stage \
     --dim_feedforward 2048 \
-    --epochs 12 \
-    --lr_drop 11 \
+    --epochs 25 \
+    --lr_drop 10 \
     --weight_decay 0.0 \
     --num_queries_one2one 300 \
     --num_queries_one2many 1500 \
