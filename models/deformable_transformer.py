@@ -32,26 +32,13 @@ from torchvision.ops import RoIAlign
 
 # sapm
 def reverse_restore_feature_maps(src, src_spatial_shapes, bs, channels):
-    """
-    逆向恢复特征图。
-
-    参数:
-    - src: 输入特征张量，形状为 (batch_size, num_elements, channels)
-    - src_spatial_shapes: 各个特征图的空间形状，形状为 (num_levels, 2) 
-                          其中每一行为 (height, width)
-    - bs: batch size
-    - channels: 通道数
-
-    返回:
-    - features: 恢复后的特征图列表
-    """
     features = []
     start_index = 0
     for (h, w) in src_spatial_shapes:
         num_elements = h * w
         end_index = start_index + num_elements
-        feature = src[:, start_index:end_index, :]  # 分割出每个尺度的特征图
-        feature = feature.transpose(1, 2).reshape(bs, channels, h, w)  # 恢复原始形状
+        feature = src[:, start_index:end_index, :]  
+        feature = feature.transpose(1, 2).reshape(bs, channels, h, w) 
         features.append(feature)
         start_index = end_index
     return features
@@ -217,7 +204,7 @@ class DeformableTransformer(nn.Module):
         valid_ratio = torch.stack([valid_ratio_w, valid_ratio_h], -1)
         return valid_ratio
 
-    @torch.cuda.amp.custom_fwd(cast_inputs=torch.float32)
+    @torch.amp.custom_fwd(cast_inputs=torch.float32, device_type='cuda')
     def forward(self, srcs, masks, pos_embeds, query_embed=None, self_attn_mask=None):
 
         # prepare input for encoder
@@ -380,7 +367,7 @@ class DeformableTransformerEncoderLayer(nn.Module):
         src = self.norm2(src)
         return src
 
-    @torch.cuda.amp.custom_fwd(cast_inputs=torch.float32)
+    @torch.amp.custom_fwd(cast_inputs=torch.float32, device_type='cuda')
     def forward(
         self,
         src,
@@ -432,7 +419,7 @@ class DeformableTransformerEncoder(nn.Module):
         reference_points = reference_points[:, :, None] * valid_ratios[:, None]
         return reference_points
 
-    @torch.cuda.amp.custom_fwd(cast_inputs=torch.float32)
+    @torch.amp.custom_fwd(cast_inputs=torch.float32, device_type='cuda')
     def forward(
         self,
         src,
@@ -511,7 +498,7 @@ class DeformableTransformerDecoderLayer(nn.Module):
         tgt = self.norm3(tgt)
         return tgt
 
-    @torch.cuda.amp.custom_fwd(cast_inputs=torch.float32)
+    @torch.amp.custom_fwd(cast_inputs=torch.float32, device_type='cuda')
     def forward(
         self,
         tgt,
@@ -584,7 +571,7 @@ class DeformableTransformerDecoder(nn.Module):
         # self.roi_align = RoIAlign(output_size=(7, 7), spatial_scale=1.0, sampling_ratio=-1)
 
         
-    @torch.cuda.amp.custom_fwd(cast_inputs=torch.float32)
+    @torch.amp.custom_fwd(cast_inputs=torch.float32, device_type='cuda')
     def forward(
         self,
         tgt,                                # tgt: 预设的query embedding [bs, 300, 256]. 内容查询

@@ -279,8 +279,7 @@ def build_backbone(args):
             args.backbone, args.n_bit, train_backbone, return_interm_layers, args.dilation,
         )
     
-        
-        load_pretrained_weights(backbone,'../models/rest50-4bit-7346.pth')
+        load_pretrained_weights(backbone,'./pretrain/rest50-4bit-7346.pth')
         # checkpoint = torch.load("./pretrain/4bit_resnet.pth", map_location="cpu")
     
         # ker2lay
