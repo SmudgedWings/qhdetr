@@ -39,6 +39,7 @@ from .lsq_plus import *
 from ._quan_base_plus import *
 import copy
 import pdb
+from .output_aggregation import OutAggregate
 
 def _get_clones(module, N):
     return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
@@ -188,6 +189,8 @@ class DeformableDETR(nn.Module):
                 nn.init.constant_(box_embed.layers[-1].bias.data[2:], 0.0)
         self.num_queries_one2one = num_queries_one2one
         self.mixed_selection = mixed_selection
+        # output aggregation
+        self.aggregate = OutAggregate(num_classes=num_classes)
 
     def forward(self, samples: NestedTensor):
         """ The forward expects a NestedTensor, which consists of:
@@ -293,12 +296,16 @@ class DeformableDETR(nn.Module):
         outputs_classes_one2many = torch.stack(outputs_classes_one2many)
         outputs_coords_one2many = torch.stack(outputs_coords_one2many)
 
+        # Output Aggregation
+        aggregated_coords, aggregated_classes, aggregation_mask = self.aggregate(outputs_coords_one2one[-1], outputs_classes_one2one[-1])
         out = {
-            "pred_logits": outputs_classes_one2one[-1],
-            "pred_boxes": outputs_coords_one2one[-1],
+            "pred_logits": aggregated_classes,
+            "pred_boxes": aggregated_coords,
+            "aggregation_mask": aggregation_mask,
             "pred_logits_one2many": outputs_classes_one2many[-1],
             "pred_boxes_one2many": outputs_coords_one2many[-1],
         }
+
         if self.aux_loss:
             out["aux_outputs"] = self._set_aux_loss(
                 outputs_classes_one2one, outputs_coords_one2one
@@ -568,7 +575,7 @@ class SetCriterion(nn.Module):
                 )
                 l_dict = {k + f"_enc": v for k, v in l_dict.items()}
                 losses.update(l_dict)
-
+        
         return losses
 
 

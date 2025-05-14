@@ -25,7 +25,7 @@ from datasets.data_prefetcher import data_prefetcher
 import pdb
 import numpy as np
 
-scaler = torch.amp.GradScaler(device='cuda')
+scaler = torch.cuda.amp.GradScaler()
 def lamda_scheduler(start_warmup_value, base_value, epochs, niter_per_ep, warmup_epochs=5):
     warmup_schedule = np.array([])
     warmup_iters = warmup_epochs * niter_per_ep
@@ -125,9 +125,7 @@ def train_one_epoch(
     for i in metric_logger.log_every(range(len(data_loader)), print_freq, header):
 
         # pdb.set_trace()
-        with torch.cuda.amp.autocast() if use_fp16 else torch.cuda.amp.autocast(
-            enabled=False
-        ):
+        with torch.amp.autocast("cuda") if use_fp16 else torch.amp.autocast("cuda", enabled=False):
             if use_fp16:
                 optimizer.zero_grad()
 

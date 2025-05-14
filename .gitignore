@@ -23,3 +23,7 @@ save*
 .log
 .pid
 *.ipynb*
+/pretrain/
+/models/ops/build/
+/models/ops/dist/
+/models/ops/MultiScaleDeformableAttention.egg-info/
