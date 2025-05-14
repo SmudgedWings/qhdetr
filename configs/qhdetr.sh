@@ -2,7 +2,7 @@
 
 set -x
 
-EXP_DIR=exps/LIEM-signed-kernel
+EXP_DIR=exps/qhdetr
 PY_ARGS=${@:1}
 
 python -u main.py \
