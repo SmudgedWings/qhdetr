@@ -14,6 +14,7 @@
 import copy
 from typing import Optional, List
 import math
+import os
 
 import torch
 import torch.nn.functional as F
@@ -23,6 +24,7 @@ from torch.nn.init import xavier_uniform_, constant_, uniform_, normal_
 
 from util.misc import inverse_sigmoid
 from models.ops.modules import MSDeformAttn
+from .analysis import *
 
 # sapm
 # import sys
@@ -642,7 +644,9 @@ class DeformableTransformerDecoder(nn.Module):
                 #     pooled_features.append(pooled_feature)
                 # Q_c_local = self.sapm_local(pooled_features).view(bs, -1, channels) # [2*300, 1, 256] -> [2, 300, 256]
                 # output = Q_c_local + output
-
+            
+            # plot_distribution(output, title=f'decoder.{lid}.co_attn.output', save_path=os.path.join('/data/nvme8/zhangbilang/',f'decoder{lid}_co_attn_output.png'))
+            
             # hack implementation for iterative bounding box refinement
             # iterative bounding box refinement, 每层参考点都会根据上一层的输出结果进行矫正
             if self.bbox_embed is not None:

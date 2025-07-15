@@ -21,7 +21,7 @@ from pathlib import Path
 import torch
 import torch.utils.data
 from pycocotools import mask as coco_mask
-
+import os
 from .torchvision_datasets import CocoDetection as TvCocoDetection
 from util.misc import get_local_rank, get_local_size
 import datasets.transforms as T
@@ -180,10 +180,16 @@ def build(image_set, args, eval_in_training_set):
     root = Path(args.coco_path)
     assert root.exists(), f"provided COCO path {root} does not exist"
     mode = "instances"
-    PATHS = {
-        "train": (root / "train2017", root / "annotations" / f"{mode}_train2017.json"),
-        "val": (root / "val2017", root / "annotations" / f"{mode}_val2017.json"),
-    }
+    if args.dataset_file == "coco":
+        PATHS = {
+            "train": (root / "train2017", root / "annotations" / f"{mode}_train2017.json"),
+            "val": (root / "val2017", root / "annotations" / f"{mode}_val2017.json"),
+        }
+    elif args.dataset_file == "voc":
+        PATHS = {
+            "train": (args.coco_path, os.path.join(args.coco_path,'voc0712_trainval.json')),
+            "val": (args.coco_path, os.path.join(args.coco_path,'voc07_test.json')),
+        }
 
     img_folder, ann_file = PATHS[image_set]
     if eval_in_training_set:

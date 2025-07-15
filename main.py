@@ -18,6 +18,7 @@ from engine import evaluate, train_one_epoch
 from models import build_model, build_quant_model
 import pdb
 import wandb
+from models.analysis import *
 
 def get_args_parser():
     parser = argparse.ArgumentParser("Deformable DETR Detector", add_help=False)
@@ -273,12 +274,15 @@ def main(args):
 
     model_without_ddp = model
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    n_parameters_sapm = sum(p.numel() for p in model.transformer.decoder.sapm_local.parameters() if p.requires_grad)
-    n_parameters_box = sum(p.numel() for p in model.transformer.decoder.box_head.parameters() if p.requires_grad)
-    n_parameters_pre = n_parameters - n_parameters_box - n_parameters_sapm
     print("number of params:", n_parameters)
-    print(n_parameters_sapm / n_parameters_pre)
-    print(n_parameters_box / n_parameters_pre)
+
+    # size_mb = get_model_size(model)
+    # # flops_g, params_m = get_flops_and_params(model, (1, 3, 224, 224))
+    # print(f"Model Size: {size_mb:.2f} MB")
+    # # print(f"FLOPs: {flops_g:.2f} G")
+    # # print(f"Parameters: {params_m:.2f} M")
+    # quant_bits = 4 if args.quant else 32
+    # calculate_model_flops(model, quant_bits)
 
     dataset_train = build_dataset(image_set="train", args=args)
     if not args.eval_in_training_set:
@@ -300,6 +304,7 @@ def main(args):
             sampler_val = samplers.DistributedSampler(dataset_val, shuffle=False)
     else:
         sampler_train = torch.utils.data.RandomSampler(dataset_train)
+        # sampler_train = torch.utils.data.SequentialSampler(dataset_train)
         sampler_val = torch.utils.data.SequentialSampler(dataset_val)
 
     batch_sampler_train = torch.utils.data.BatchSampler(

@@ -19,12 +19,13 @@ from torch._jit_internal import boolean_dispatch, List, Optional, _overload, Tup
 from torch.overrides import has_torch_function, handle_torch_function
 from .attention_layer import *
 from .ms_attention_layer import *
-import pdb
+import os
 
 # sapm
 # from .quant_sapm import *
 from .quant_sapm_separableconv import *
 from torchvision.ops import RoIAlign
+from ..analysis import *
 
 def save_decoder_layer_output_as_3d_image(output_tensor, file_path="decoder_layer_output_3d_visualization.png"):
     import numpy as np
@@ -616,12 +617,6 @@ class DeformableTransformerDecoder(nn.Module):
 
         # sapm
         self.channels = 256
-        # self.q1 = 300
-        # self.q2 = 1500
-        # self.sapm_deformable_1 = SAPM_Deformable(self.channels, self.q1, num_scales=4)
-        # self.sapm_deformable_2 = SAPM_Deformable(self.channels, self.q2, num_scales=4)
-
-        # self.sapm_local = SAPM_Deformable(self.channels, 1, num_scales=4)
         self.sapm_local = SAPM(self.channels, 1)
         self.box_head = MLP(self.channels, self.channels, 4, 3)
         self.roi_align = RoIAlign(output_size=(7, 7), spatial_scale=1.0, sampling_ratio=-1)
@@ -644,10 +639,6 @@ class DeformableTransformerDecoder(nn.Module):
         # sapm
         bs, _, channels = query_pos.size()     # [2, 1800, 256]
         features = reverse_restore_feature_maps(src, src_spatial_shapes, bs, channels)  # 逆向恢复 特征图 
-        # Q_c0_1 = self.sapm_deformable_1(features)  # [2, 300, 256]
-        # Q_c0_2 = self.sapm_deformable_2(features)  # [2, 1500, 256]
-        # Q_c0 = Q_c0_1 if not self.training else torch.cat((Q_c0_1, Q_c0_2), dim=1)
-        # output = Q_c0 + output
  
         intermediate = []
         intermediate_reference_points = []
@@ -688,33 +679,16 @@ class DeformableTransformerDecoder(nn.Module):
 
                 # sapm
                 outputs_coord = self.box_head(output).sigmoid()  # [2, 300, 256] -> [2, 300, 4]
-                # pooled_features = []
-                # for feature,feature_shape in zip(features,src_spatial_shapes):
-                #     rois = convert_to_rois(outputs_coord,feature_shape) # [2*300, 5]
-                #     pooled_feature = self.roi_align(feature, rois)  # [2*300, 256, 7, 7]
-                #     pooled_features.append(pooled_feature)
-                # Q_c_local = self.sapm_local(pooled_features).view(bs, -1, channels) # [2*300, 1, 256] -> [2, 300, 256]
-
                 # only finel feature
                 # features[3] 1x256x13x19
                 rois = convert_to_rois(outputs_coord,src_spatial_shapes[3]) # [2*300, 5]
                 pooled_feature = self.roi_align(features[3], rois)  # [2*300, 256, 7, 7]
                 
                 Q_c_local = self.sapm_local(pooled_feature).view(bs, -1, channels)
-                # if not torch.all(Q_c_local == 0.0):
-                #     print("++++++++++++++++++")
-                # print(torch.all(Q_c_local == 0.0))
-                # print(Q_c_local)
-                # if lid==5:
-                #     import pdb;pdb.set_trace()
-                #     plot_histogram_with_stats(output,'/data/zhangbilang/qhdetr20241018/scripts/6th_output_his_wo_local')
-                #     plot_histogram_with_stats(Q_c_local,'/data/zhangbilang/qhdetr20241018/scripts/6th_local')
-
                 output = Q_c_local + output
-                # if lid==5:
-                #     plot_histogram_with_stats(output,'/data/zhangbilang/qhdetr20241018/scripts/6th_output_his_with_local')
-                #     import pdb;pdb.set_trace()
-
+               
+            # plot_distribution(output, title=f'decoder.{lid}.co_attn.output', save_path=os.path.join('/data/nvme8/zhangbilang/',f'qddetr_decoder{lid}_co_attn_output.png'))
+            
             # hack implementation for iterative bounding box refinement
             if self.bbox_embed is not None:
                 tmp = self.bbox_embed[lid](output)

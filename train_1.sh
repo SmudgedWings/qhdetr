@@ -3,10 +3,9 @@
 
 # CUDA_VISIBLE_DEVICES=0 \
 
-CUDA_VISIBLE_DEVICES=0 GPUS_PER_NODE=1 ./tools/run_dist_launch.sh 1 ./configs/qddetr.sh \
-    --coco_path /data/nvme8/zhangbilang/datasets/coco2017 \
-    --resume /data/nvme8/zhangbilang/qhdetr/pretrain/r50_dp0_mqs_lft_deformable_detr_plus_iterative_bbox_refinement_plus_plus_two_stage_12eps.pth \
-    --load_q_RN50 \
+CUDA_VISIBLE_DEVICES=0 GPUS_PER_NODE=1 ./tools/run_dist_launch.sh 1 ./configs/hdetr.sh \
+    --dataset_file voc \
+    --coco_path /data/nvme8/zhangbilang/datasets/VOCdevkit \
     --batch_size 1 \
 #    --eval
 # --resume ./checkpoint_437.pth 

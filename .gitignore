@@ -24,6 +24,8 @@ save*
 .pid
 *.ipynb*
 /pretrain/
+/exps/
+/picture/
 /models/ops/build/
 /models/ops/dist/
 /models/ops/*.egg-info/
