@@ -17,53 +17,12 @@ import copy
 
 import wandb
 import torch
-from torch.nn import functional as F
 import util.misc as utils
 from datasets.coco_eval import CocoEvaluator
 from datasets.panoptic_eval import PanopticEvaluator
 from datasets.data_prefetcher import data_prefetcher
-import pdb
-import numpy as np
 
 scaler = torch.amp.GradScaler(device='cuda')
-def lamda_scheduler(start_warmup_value, base_value, epochs, niter_per_ep, warmup_epochs=5):
-    warmup_schedule = np.array([])
-    warmup_iters = warmup_epochs * niter_per_ep
-    if warmup_epochs > 0:
-        warmup_schedule = np.linspace(start_warmup_value, base_value, warmup_iters)
-
-    schedule = np.ones(epochs * niter_per_ep - warmup_iters) * base_value
-    schedule = np.concatenate((warmup_schedule, schedule))
-    assert len(schedule) == epochs * niter_per_ep
-    return schedule
-
-def mec_loss(p, z, lamda_inv, order=4):
-    p = F.normalize(p)
-    z = F.normalize(z)
-    c = p @ z.T
-    c = c / lamda_inv
-    power_matrix = c
-    sum_matrix = torch.zeros_like(power_matrix)
-
-    for k in range(1, order+1):
-        if k > 1:
-            power_matrix = torch.matmul(power_matrix, c)
-        if (k + 1) % 2 == 0:
-            sum_matrix += power_matrix / k
-        else:
-            sum_matrix -= power_matrix / k
-
-    trace = torch.trace(sum_matrix)
-    return trace
-
-# this is the weight of mec_loss 
-def get_current_consistency_weight(current, rampup_length, top):
-    if rampup_length == 0:
-        return top
-    else:
-        current = np.clip(current, 0.0, rampup_length)
-        phase = 1.0 - current / rampup_length
-        return top * float(np.exp(-5.0 * phase * phase))
 
 
 def train_hybrid(outputs, targets, k_one2many, criterion, lambda_one2many):
@@ -102,8 +61,6 @@ def train_one_epoch(
     lambda_one2many=1.0,
     use_wandb=False,
     use_fp16=False,
-    use_mec=False,
-    total_epochs=12,
 ):
     model.train()
     criterion.train()
@@ -147,36 +104,9 @@ def train_one_epoch(
             else:
                 loss_dict = criterion(outputs, targets)
         weight_dict = criterion.weight_dict
-       
         losses = sum(
             loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict
         )
-
-        if use_mec:
-            # eps = 1e4   # 32
-            warmup_epochs = 2
-            top = 0.03
-            it = len(data_loader) * (epoch - 1) + i
-            total_mecloss = 0
-            for head_input in outputs["head_inputs"]:
-                b, C, H, W = head_input.shape  # [2, 256, 100, 134], [2, 256, 50, 67], [2, 256, 25, 34], [2, 256, 13, 17]
-                d = C*H*W
-                base_eps = 32
-                base_d = 2048
-                scale = d / base_d 
-                eps = int(scale*base_eps)
-                eps_d =  eps / d
-                lamda = 1 / (b * eps_d)
-                lamda_schedule = lamda_scheduler(8 / lamda, 1 / lamda, total_epochs, len(data_loader), warmup_epochs=warmup_epochs)
-                lamda_inv = lamda_schedule[it]
-                # print(lamda_inv)
-                head_input = head_input.reshape(b, -1)
-                mecloss = (-1) * mec_loss(head_input, head_input, lamda_inv) / b * lamda_inv / scale
-                weight = get_current_consistency_weight(it, warmup_epochs*len(data_loader), top)
-                total_mecloss += weight * mecloss
-            losses += total_mecloss
-            loss_dict["mec_loss"] = total_mecloss
-    
 
         # reduce losses over all GPUs for logging purposes
         loss_dict_reduced = utils.reduce_dict(loss_dict) #distributed compute

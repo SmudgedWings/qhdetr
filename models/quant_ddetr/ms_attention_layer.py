@@ -106,8 +106,6 @@ class QuantMS_DAttention(nn.Module):
         self.n_heads = n_heads
         self.n_points = n_points
 
-        # self.q_act = ActLSQ(nbits_a=4, in_features=n_heads)
-        # self.k_act = ActLSQ(nbits_a=4, in_features=n_heads)
         self.v_act = ActLSQ(nbits_a=4, in_features=n_heads)
         self.attn_act = ActLSQ(nbits_a=4, in_features=n_heads)
 
@@ -218,7 +216,10 @@ class QuantMS_DAttention(nn.Module):
         # )
 
         # attention_weights[2, 14288, 8, 4, 4]  value[2, 14288, 8, 32]
+        B, Len, H, L, P = attention_weights.shape
+        attention_weights = attention_weights.permute(0, 2, 1, 3, 4).reshape(B, H, Len, L * P)
         attention_weights = self.attn_act(attention_weights)
+        attention_weights = attention_weights.reshape(B, H, Len_q, L, P).permute(0, 2, 1, 3, 4)
         # value = self.v_act(value)
         output = ms_deform_attn_core_pytorch(
             value,

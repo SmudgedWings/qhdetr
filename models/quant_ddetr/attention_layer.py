@@ -41,10 +41,10 @@ def multi_head_attention_forward(query: Tensor,
                                  q_act : nn.Module,
                                  k_act : nn.Module,
                                  v_act : nn.Module,
+                                 attn_act: nn.Module,
                                  qf_act : nn.Module,
                                  kf_act : nn.Module,
                                  vf_act : nn.Module,
-                                 attn_act : nn.Module,
                                  da: nn.Module,
                                  embed_dim_to_check: int,
                                  num_heads: int,
@@ -301,7 +301,6 @@ def multi_head_attention_forward(query: Tensor,
 
     src_len = k.size(-2)
 
-
     if key_padding_mask is not None:
         assert key_padding_mask.size(0) == bsz
         assert key_padding_mask.size(1) == src_len
@@ -317,7 +316,6 @@ def multi_head_attention_forward(query: Tensor,
 
     if da is not None:
         q = da(q)
-    # pdb.set_trace()
     q = q_act(q)
     k = k_act(k)
     attn_output_weights = q @ k.transpose(-2, -1) * scaling
@@ -409,15 +407,13 @@ class QuantMultiheadAttention(nn.Module):
             self.norm_q = DistributionAlignment(embed_dim//num_heads)
         else:
             self.norm_q = None
-        # pdb.set_trace()
         self.q_act = ActLSQ(nbits_a=4, in_features=num_heads)
         self.k_act = ActLSQ(nbits_a=4, in_features=num_heads)
         self.v_act = ActLSQ(nbits_a=4, in_features=num_heads)
         self.attn_act = ActLSQ(nbits_a=4, in_features=num_heads)
-
-        self.qf_act = ActLSQ(nbits_a=4, in_features=num_heads)
-        self.kf_act = ActLSQ(nbits_a=4, in_features=num_heads)
-        self.vf_act = ActLSQ(nbits_a=4, in_features=num_heads)
+        self.qf_act = ActLSQ(nbits_a=4, in_features=embed_dim)
+        self.kf_act = ActLSQ(nbits_a=4, in_features=embed_dim)
+        self.vf_act = ActLSQ(nbits_a=4, in_features=embed_dim)
 
 
         self.in_proj = LinearLSQ(embed_dim, embed_dim * 3, nbits_w = n_bit, bias=True)

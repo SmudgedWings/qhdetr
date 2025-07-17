@@ -5,10 +5,10 @@ from .lsq_plus import *
 from ._quan_base_plus import *
 
 class SeparableConv2dLSQ(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, padding=0, nbits_w=4):
+    def __init__(self, in_channels, out_channels, kernel_size, padding=0, stride=1, bias=True, nbits_w=4):
         super(SeparableConv2dLSQ, self).__init__()
-        self.depthwise = Conv2dLSQ(in_channels, in_channels, kernel_size=kernel_size, padding=padding, groups=in_channels, nbits_w=nbits_w)
-        self.pointwise = Conv2dLSQ(in_channels, out_channels, kernel_size=1, nbits_w=nbits_w)
+        self.depthwise = Conv2dLSQ(in_channels, in_channels, kernel_size=kernel_size, padding=padding, stride=stride, bias=bias, groups=in_channels, nbits_w=nbits_w)
+        self.pointwise = Conv2dLSQ(in_channels, out_channels, kernel_size=1, padding=0, stride=1, bias=bias, nbits_w=nbits_w)
 
     def forward(self, x):
         x = self.depthwise(x)
@@ -18,8 +18,8 @@ class SeparableConv2dLSQ(nn.Module):
 class AMP(nn.Module):   # c,h,w -> 1,h,w
     def __init__(self, in_channels=256, q=1, groups=32, tau=1.2):
         super(AMP, self).__init__()
-        self.conv1 = SeparableConv2dLSQ(in_channels, in_channels, kernel_size=5, padding=2, nbits_w=4)
-        self.conv2 = SeparableConv2dLSQ(in_channels, in_channels, kernel_size=3, padding=1, nbits_w=4)
+        self.conv1 = SeparableConv2dLSQ(in_channels, in_channels, kernel_size=5, padding=2, bias=False, nbits_w=4)
+        self.conv2 = SeparableConv2dLSQ(in_channels, in_channels, kernel_size=3, padding=1, bias=False, nbits_w=4)
         self.conv3 = SeparableConv2dLSQ(in_channels, q, kernel_size=3, padding=1, nbits_w=4)
         self.gn1 = nn.GroupNorm(groups, in_channels)
         self.gn2 = nn.GroupNorm(groups, in_channels)
@@ -28,8 +28,8 @@ class AMP(nn.Module):   # c,h,w -> 1,h,w
         self.tau = tau 
 
     def forward(self, x):
-        x = self.prelu1(self.gn1(self.conv1(x)))  # 使用 PReLU
-        x = self.prelu2(self.gn2(self.conv2(x)))  # 使用 PReLU
+        x = self.prelu1(self.gn1(self.conv1(x)))
+        x = self.prelu2(self.gn2(self.conv2(x)))
         x = self.conv3(x)
         # 对空间维度进行softmax归一化
         _, _, h, w = x.size()
@@ -73,8 +73,8 @@ class CR(nn.Module):
         x = self.sigmoid(self.fc2(x))
         return x
     
-class SAPM(nn.Module):
-    def __init__(self, in_channels=256, q=300, groups=32, tau=1.2):
+class SAPM(nn.Module): # [2*300, 256, 7, 7] ->  [2, 300, 256]
+    def __init__(self, in_channels=256, q=1, groups=32, tau=1.2):
         super(SAPM, self).__init__()
         self.amp = AMP(in_channels, q, groups, tau)
         self.wp = WP()
@@ -83,6 +83,7 @@ class SAPM(nn.Module):
         self.F_P_act = ActLSQ(nbits_a=4,in_features=in_channels)
 
     def forward(self, F):
+        import pdb;pdb.set_trace()
         A = self.amp(F)
         F_P = self.wp(F, A)
         F_C = self.cr(F_P)
@@ -91,39 +92,9 @@ class SAPM(nn.Module):
         F_P = self.F_P_act(F_P)
 
         # F_P: b x q x c 
-        F_O = F_C * F_P
+        F_O = F_C * F_P + F_P
         return F_O
     
-class SAPM_Deformable(nn.Module):
-    def __init__(self, in_channels=256, q=300, groups=32, tau=1.2, num_scales=4):
-        super(SAPM_Deformable, self).__init__()
-        self.num_scales = num_scales
-        self.amps = nn.ModuleList([AMP(in_channels, q, groups, tau) for _ in range(num_scales)])
-        self.wp = WP()
-        self.cr = CR(in_channels)
-        self.F_C_act = ActLSQ(nbits_a=4,in_features=8)
-        self.F_P_act = ActLSQ(nbits_a=4,in_features=8)
-
-    def forward(self, multi_scale_features):
-        pooled_features = []
-        
-        for i in range(self.num_scales):
-            F = multi_scale_features[i]
-            A = self.amps[i](F)
-            F_P = self.wp(F, A)
-            pooled_features.append(F_P)
-        
-        # Average pooled features from different scales
-        F_P_avg = torch.mean(torch.stack(pooled_features), dim=0)
-        
-        F_C = self.cr(F_P_avg)
-
-        F_C = self.F_C_act(F_C)
-        F_P_avg = self.F_P_act(F_P_avg)
-
-        F_O = F_C * F_P_avg
-        return F_O
-
 class MLP(nn.Module):
     """ Very simple multi-layer perceptron (also called FFN)"""
 

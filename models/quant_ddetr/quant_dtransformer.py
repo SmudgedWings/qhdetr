@@ -22,32 +22,35 @@ from .ms_attention_layer import *
 import os
 
 # sapm
-# from .quant_sapm import *
 from .quant_sapm_separableconv import *
 from torchvision.ops import RoIAlign
 from ..analysis import *
 
-def save_decoder_layer_output_as_3d_image(output_tensor, file_path="decoder_layer_output_3d_visualization.png"):
-    import numpy as np
-    import matplotlib.pyplot as plt
-    from mpl_toolkits.mplot3d import Axes3D
-    # 移除batch维度，得到 (1800, 256) 的矩阵
-    output = output_tensor.squeeze(0).detach().cpu().numpy()
-    fig = plt.figure(figsize=(16, 10))
-    ax = fig.add_subplot(111, projection='3d')
-    x = np.arange(output.shape[0])  # 1800个tokens位置
-    y = np.arange(output.shape[1])  # 256个特征维度
-    X, Y = np.meshgrid(x, y)
-    Z = output.T  # 转置为 (256, 1800) 以匹配X和Y的维度
-    surf = ax.plot_surface(X, Y, Z, cmap='viridis', edgecolor='none')
-    ax.set_title("3D Visualization of Decoder Layer Output")
-    ax.set_xlabel("Token Position (1800)")
-    ax.set_ylabel("Feature Dimension (256)")
-    ax.set_zlabel("Feature Value")
+# sapm
+def reverse_restore_feature_maps(src, src_spatial_shapes, bs, channels):
+    """
+    逆向恢复特征图。
 
-    plt.savefig(file_path, format="png")
-    plt.close()
-    print(f"图像已保存到: {file_path}")
+    参数:
+    - src: 输入特征张量，形状为 (batch_size, num_elements, channels)
+    - src_spatial_shapes: 各个特征图的空间形状，形状为 (num_levels, 2) 
+                          其中每一行为 (height, width)
+    - bs: batch size
+    - channels: 通道数
+
+    返回:
+    - features: 恢复后的特征图列表
+    """
+    features = []
+    start_index = 0
+    for (h, w) in src_spatial_shapes:
+        num_elements = h * w
+        end_index = start_index + num_elements
+        feature = src[:, start_index:end_index, :]  # 分割出每个尺度的特征图
+        feature = feature.transpose(1, 2).reshape(bs, channels, h, w)  # 恢复原始形状
+        features.append(feature)
+        start_index = end_index
+    return features
 
 class DeformableTransformer(nn.Module):
     def __init__(
@@ -539,62 +542,6 @@ class DeformableTransformerDecoderLayer(nn.Module):
 
         return tgt
 
-# sapm
-def reverse_restore_feature_maps(src, src_spatial_shapes, bs, channels):
-    """
-    逆向恢复特征图。
-
-    参数:
-    - src: 输入特征张量，形状为 (batch_size, num_elements, channels)
-    - src_spatial_shapes: 各个特征图的空间形状，形状为 (num_levels, 2) 
-                          其中每一行为 (height, width)
-    - bs: batch size
-    - channels: 通道数
-
-    返回:
-    - features: 恢复后的特征图列表
-    """
-    features = []
-    start_index = 0
-    for (h, w) in src_spatial_shapes:
-        num_elements = h * w
-        end_index = start_index + num_elements
-        feature = src[:, start_index:end_index, :]  # 分割出每个尺度的特征图
-        feature = feature.transpose(1, 2).reshape(bs, channels, h, w)  # 恢复原始形状
-        features.append(feature)
-        start_index = end_index
-    return features
-
-def plot_histogram_with_stats(tensor, save_path):
- 
-    import numpy as np
-    import matplotlib.pyplot as plt
-    import seaborn as sns
-    
-    output_flat = tensor.cpu().numpy().flatten()
-    
-    # 创建绘图
-    plt.figure(figsize=(6, 4))
-    sns.histplot(output_flat, bins=500, kde=True, color="skyblue", stat="count")
-
-    plt.xlim((-1, 1))
-    
-    # 计算均值和标准差
-    mean = np.mean(output_flat)
-    std_dev = np.std(output_flat)
-    
-    # 添加均值和标准差到图中
-    plt.title("quantizated output")
-    plt.xlabel("values")
-    plt.ylabel("count")
-    plt.text(0.05, max(plt.gca().get_ylim()) * 0.8, f"mean: {mean:.5f}\nstd: {std_dev:.5f}", fontsize=10)
-    
-    # 去除网格线
-    plt.grid(False)
-    
-    # 保存图像到指定路径
-    plt.savefig(save_path, bbox_inches='tight')
-    plt.close()  # 关闭图像以释放内存
 
 class DeformableTransformerDecoder(nn.Module):
     def __init__(
@@ -614,12 +561,12 @@ class DeformableTransformerDecoder(nn.Module):
         # hack implementation for iterative bounding box refinement and two-stage Deformable DETR
         self.bbox_embed = None
         self.class_embed = None
-
-        # sapm
-        self.channels = 256
-        self.sapm_local = SAPM(self.channels, 1)
-        self.box_head = MLP(self.channels, self.channels, 4, 3)
-        self.roi_align = RoIAlign(output_size=(7, 7), spatial_scale=1.0, sampling_ratio=-1)
+        
+        # # sapm
+        # self.channels = 256
+        # self.sapm_local = SAPM(self.channels, 1)
+        # self.box_head = MLP(self.channels, self.channels, 4, 3)
+        # self.roi_align = RoIAlign(output_size=(7, 7), spatial_scale=1.0, sampling_ratio=-1)
 
     @torch.amp.custom_fwd(cast_inputs=torch.float32, device_type='cuda')
     def forward(
@@ -637,8 +584,8 @@ class DeformableTransformerDecoder(nn.Module):
         output = tgt 
 
         # sapm
-        bs, _, channels = query_pos.size()     # [2, 1800, 256]
-        features = reverse_restore_feature_maps(src, src_spatial_shapes, bs, channels)  # 逆向恢复 特征图 
+        # bs, _, channels = query_pos.size()     # [2, 1800, 256]
+        # features = reverse_restore_feature_maps(src, src_spatial_shapes, bs, channels)  # 逆向恢复 特征图 
  
         intermediate = []
         intermediate_reference_points = []
@@ -678,14 +625,11 @@ class DeformableTransformerDecoder(nn.Module):
                 )
 
                 # sapm
-                outputs_coord = self.box_head(output).sigmoid()  # [2, 300, 256] -> [2, 300, 4]
-                # only finel feature
-                # features[3] 1x256x13x19
-                rois = convert_to_rois(outputs_coord,src_spatial_shapes[3]) # [2*300, 5]
-                pooled_feature = self.roi_align(features[3], rois)  # [2*300, 256, 7, 7]
-                
-                Q_c_local = self.sapm_local(pooled_feature).view(bs, -1, channels)
-                output = Q_c_local + output
+                # outputs_coord = self.box_head(output).sigmoid()  # [2, 300, 256] -> [2, 300, 4]
+                # rois = convert_to_rois(outputs_coord,src_spatial_shapes[3]) # [2*300, 5]
+                # pooled_feature = self.roi_align(features[3], rois)  # [2*300, 256, 7, 7]
+                # Q_c_local = self.sapm_local(pooled_feature).view(bs, -1, channels)  # [2*300, 256, 7, 7] ->  [2, 300, 256]
+                # output = Q_c_local + output
                
             # plot_distribution(output, title=f'decoder.{lid}.co_attn.output', save_path=os.path.join('/data/nvme8/zhangbilang/',f'qddetr_decoder{lid}_co_attn_output.png'))
             
@@ -734,7 +678,6 @@ def _get_activation_fn(activation):
 
 
 def build_deforamble_transformer(args):
-    # pdb.set_trace()
     return DeformableTransformer(
         d_model=args.hidden_dim,
         nhead=args.nheads,

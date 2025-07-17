@@ -38,43 +38,11 @@ from .quant_dtransformer import build_deforamble_transformer
 from .lsq_plus import *
 from ._quan_base_plus import *
 import copy
-import pdb
-from .output_aggregation import OutAggregate
+# from .output_aggregation import OutAggregate
 
 def _get_clones(module, N):
     return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
 
-def plot_references_on_image(references, image, image_size, level, save_path):
-    import matplotlib.pyplot as plt
-    """
-    在输入图像上绘制指定层级的 reference 点并保存到本地。
-    
-    参数:
-    - references (torch.Tensor): 归一化的 reference 坐标, 形状为 [batch_size, num_queries, 2 或 4]。
-    - image (np.ndarray): 输入图像数组，形状为 (H, W, 3)。
-    - image_size (tuple): 图像的尺寸 (width, height)。
-    - level (int): 当前参考点的 decoder 层数。
-    - save_path (str): 保存图像的本地路径。
-    """
-    img_width, img_height = image_size
-
-    if references.dim() == 2:  # 若 references 为二维，添加一个维度
-        references = references.unsqueeze(0)
-
-    ref_points = references[..., :2].detach().cpu().numpy()
-    x_points = (ref_points[:, :, 0] * img_width).flatten()
-    y_points = (ref_points[:, :, 1] * img_height).flatten()
-
-    plt.figure(figsize=(10, 8))
-    plt.imshow(image)
-    plt.scatter(x_points, y_points, color="red", s=10, alpha=0.6, label=f'Decoder Layer {level}')
-    plt.xlabel("X Coordinate")
-    plt.ylabel("Y Coordinate")
-    plt.title(f"Reference Points for Decoder Layer {level} on Input Image")
-    plt.legend()
-    plt.axis('off')
-    plt.savefig(f"{save_path}_layer_{level}.png")
-    plt.close() 
 
 class DeformableDETR(nn.Module):
     """ This is the Deformable DETR module that performs object detection """
@@ -106,7 +74,6 @@ class DeformableDETR(nn.Module):
 
         """
         super().__init__()
-        # pdb.set_trace()
         num_queries = num_queries_one2one + num_queries_one2many
         self.num_queries = num_queries
         self.transformer = transformer
@@ -190,10 +157,10 @@ class DeformableDETR(nn.Module):
         self.num_queries_one2one = num_queries_one2one
         self.mixed_selection = mixed_selection
         # output aggregation
-        self.aggregate = OutAggregate(num_classes=num_classes)
+        # self.aggregate = OutAggregate(num_classes=num_classes)
 
     def forward(self, samples: NestedTensor):
-        """ The forward expects a NestedTensor, which consists of:
+        """ The forward expects a NestedTensor, which consists of:
                - samples.tensor: batched images, of shape [batch_size x 3 x H x W]
                - samples.mask: a binary mask of shape [batch_size x H x W], containing 1 on padded pixels
 
@@ -297,15 +264,16 @@ class DeformableDETR(nn.Module):
         outputs_coords_one2many = torch.stack(outputs_coords_one2many)
 
         # Output Aggregation
-        aggregated_coords, aggregated_classes, aggregation_mask = self.aggregate(outputs_coords_one2one[-1], outputs_classes_one2one[-1])
+        # aggregated_coords, aggregated_classes, aggregation_mask = self.aggregate(outputs_coords_one2one[-1], outputs_classes_one2one[-1])
         out = {
-            "pred_logits": aggregated_classes,
-            "pred_boxes": aggregated_coords,
-            "aggregation_mask": aggregation_mask,
+            # "pred_logits": aggregated_classes,
+            # "pred_boxes": aggregated_coords,
+            # "aggregation_mask": aggregation_mask,
+            "pred_logits": outputs_classes_one2one[-1],
+            "pred_boxes": outputs_coords_one2one[-1],
             "pred_logits_one2many": outputs_classes_one2many[-1],
             "pred_boxes_one2many": outputs_coords_one2many[-1],
         }
-
         if self.aux_loss:
             out["aux_outputs"] = self._set_aux_loss(
                 outputs_classes_one2one, outputs_coords_one2one
@@ -424,7 +392,6 @@ class SetCriterion(nn.Module):
         """
         assert "pred_boxes" in outputs
         idx = self._get_src_permutation_idx(indices)
-        # pdb.set_trace()
         src_boxes = outputs["pred_boxes"][idx]
         target_boxes = torch.cat(
             [t["boxes"][i] for t, (_, i) in zip(targets, indices)], dim=0
@@ -575,7 +542,7 @@ class SetCriterion(nn.Module):
                 )
                 l_dict = {k + f"_enc": v for k, v in l_dict.items()}
                 losses.update(l_dict)
-        
+
         return losses
 
 
@@ -635,7 +602,6 @@ class MLP(nn.Module):
         #     nn.Linear(n, k) for n, k in zip([input_dim] + h, h + [output_dim])
         # )
         self.layers = nn.ModuleList(LinearLSQ(n, k) for n, k in zip([input_dim] + h, h + [output_dim]))
-        # pdb.set_trace()
         self.layers[-1] = nn.Linear(256, 4, bias=True)
 
     def forward(self, x):

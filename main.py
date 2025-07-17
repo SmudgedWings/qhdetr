@@ -18,15 +18,16 @@ from engine import evaluate, train_one_epoch
 from models import build_model, build_quant_model
 import pdb
 import wandb
+
 from models.analysis import *
 
 def get_args_parser():
     parser = argparse.ArgumentParser("Deformable DETR Detector", add_help=False)
-    parser.add_argument("--lr", default=2e-4, type=float) # 2e-4
+    parser.add_argument("--lr", default=2e-4, type=float)
     parser.add_argument(
         "--lr_backbone_names", default=["backbone.0"], type=str, nargs="+"
     )
-    parser.add_argument("--lr_backbone", default=2e-5, type=float) # 2e-5
+    parser.add_argument("--lr_backbone", default=2e-5, type=float)
     parser.add_argument(
         "--lr_linear_proj_names",
         default=["reference_points", "sampling_offsets"],
@@ -34,7 +35,7 @@ def get_args_parser():
         nargs="+",
     )
     parser.add_argument("--lr_linear_proj_mult", default=0.1, type=float)
-    parser.add_argument("--batch_size", default=2, type=int)#2
+    parser.add_argument("--batch_size", default=2, type=int)
     parser.add_argument("--weight_decay", default=1e-4, type=float)
     parser.add_argument("--epochs", default=50, type=int)
     parser.add_argument("--lr_drop", default=40, type=int)
@@ -44,9 +45,10 @@ def get_args_parser():
     )
 
     parser.add_argument("--sgd", action="store_true")
+    
+    # quant
     parser.add_argument('--quant', action='store_true', help="")
     parser.add_argument('--n_bit', default=4, type=int, help="")
-    parser.add_argument('--quant_one', action='store_true', help="")
     parser.add_argument('--load_q_RN50', default=False, action='store_true', help="")
     
     # Variants of Deformable DETR
@@ -166,7 +168,6 @@ def get_args_parser():
         action="store_false",
         help="Disables auxiliary decoding losses (loss at each layer)",
     )
-    parser.add_argument("--mec_loss", action="store_true", default=False)
 
     # * Matcher
     parser.add_argument(
@@ -195,7 +196,6 @@ def get_args_parser():
     parser.add_argument("--bbox_loss_coef", default=5, type=float)
     parser.add_argument("--giou_loss_coef", default=2, type=float)
     parser.add_argument("--focal_alpha", default=0.25, type=float)
-
 
     # dataset parameters
     parser.add_argument("--dataset_file", default="coco")
@@ -268,9 +268,7 @@ def main(args):
     else:
         model, criterion, postprocessors = build_model(args)
     model.to(device)
-    print(model)
-    # model, criterion, postprocessors = build_model(args)
-    # model.to(device)
+    # print(model)
 
     model_without_ddp = model
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -350,7 +348,7 @@ def main(args):
                 and p.requires_grad
             ],
             "lr": args.lr,
-        }, #2e-4
+        },
         {
             "params": [
                 p
@@ -358,7 +356,7 @@ def main(args):
                 if match_name_keywords(n, args.lr_backbone_names) and p.requires_grad
             ],
             "lr": args.lr_backbone,
-        }, #2e-5
+        },
         {
             "params": [
                 p
@@ -366,7 +364,7 @@ def main(args):
                 if match_name_keywords(n, args.lr_linear_proj_names) and p.requires_grad
             ],
             "lr": args.lr * args.lr_linear_proj_mult,
-        }, #2e-5
+        },
     ]
     if args.sgd:
         optimizer = torch.optim.SGD(
@@ -412,8 +410,6 @@ def main(args):
         missing_keys, unexpected_keys = model_without_ddp.load_state_dict(
             checkpoint["model"], strict=False
         )
-        
-        # pdb.set_trace()
         unexpected_keys = [
             k
             for k in unexpected_keys
@@ -424,7 +420,6 @@ def main(args):
         #     print("Missing Keys: {}".format(missing_keys))
         if len(unexpected_keys) > 0:
             print("Unexpected Keys: {}".format(unexpected_keys))
-        
         if (
             not args.eval
             and not args.resume_weight_only
@@ -433,7 +428,7 @@ def main(args):
             and "epoch" in checkpoint
         ):
             import copy
-            # pdb.set_trace()
+
             p_groups = copy.deepcopy(optimizer.param_groups)
             optimizer.load_state_dict(checkpoint["optimizer"])
             for pg, pg_old in zip(optimizer.param_groups, p_groups):
@@ -453,8 +448,6 @@ def main(args):
                 )
             lr_scheduler.step(lr_scheduler.last_epoch)
             args.start_epoch = checkpoint["epoch"] + 1
-
-            # pdb.set_trace()
         # check the resumed model
         # if not args.eval:
         #     test_stats, coco_evaluator = evaluate(
@@ -487,13 +480,11 @@ def main(args):
             )
         return
 
-    # pdb.set_trace()
     print("Start training")
     start_time = time.time()
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             sampler_train.set_epoch(epoch)
-        mce_need = [args.epochs]
         train_stats = train_one_epoch(
             model,
             criterion,
@@ -506,8 +497,6 @@ def main(args):
             lambda_one2many=args.lambda_one2many,
             use_wandb=args.use_wandb,
             use_fp16=args.use_fp16,
-            use_mec=args.mec_loss,      # for mce
-            total_epochs=args.epochs   # for mce
         )
         lr_scheduler.step()
         if args.output_dir:

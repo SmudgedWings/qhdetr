@@ -26,10 +26,6 @@ from util.misc import inverse_sigmoid
 from models.ops.modules import MSDeformAttn
 from .analysis import *
 
-# sapm
-# import sys
-# sys.path.append('/data/code/zbl/H-Deformable-DETR_test_sapm/models')
-from .sapm import *
 from torchvision.ops import RoIAlign
 
 # sapm
@@ -70,7 +66,7 @@ class DeformableTransformer(nn.Module):
         self.d_model = d_model
         self.nhead = nhead
         self.two_stage = two_stage
-        self.two_stage_num_proposals = two_stage_num_proposals  # 1800
+        self.two_stage_num_proposals = two_stage_num_proposals
 
         encoder_layer = DeformableTransformerEncoderLayer(
             d_model,
@@ -248,7 +244,6 @@ class DeformableTransformer(nn.Module):
 
         # prepare input for decoder
         bs, _, c = memory.shape
-
         if self.two_stage:
             output_memory, output_proposals = self.gen_encoder_output_proposals(  # output_memory: [2, 16320, 256] output_proposals:[2, 16320, 4]
                 memory, mask_flatten, spatial_shapes
@@ -285,13 +280,12 @@ class DeformableTransformer(nn.Module):
             pos_trans_out = self.pos_trans_norm(
                 self.pos_trans(self.get_proposal_pos_embed(topk_coords_unact))
             )
+
             if not self.mixed_selection:
                 query_embed, tgt = torch.split(pos_trans_out, c, dim=2)
             else:
                 # query_embed here is the content embed for deformable DETR
                 tgt = query_embed.unsqueeze(0).expand(bs, -1, -1)   # query_embed: [1800, 256]
-                # sapm
-                # tgt = None
                 query_embed, _ = torch.split(pos_trans_out, c, dim=2)
         else:
             # 随机初始化 query_embed = nn.Embedding(num_queries, hidden_dim*2)
@@ -319,11 +313,8 @@ class DeformableTransformer(nn.Module):
         )
 
         inter_references_out = inter_references
-
-        temp_features = reverse_restore_feature_maps(memory, spatial_shapes, bs, c)
         if self.two_stage:
             return (
-                temp_features,
                 hs,
                 init_reference_out,
                 inter_references_out,
@@ -541,7 +532,6 @@ class DeformableTransformerDecoderLayer(nn.Module):
         return tgt
 
 
-
 class DeformableTransformerDecoder(nn.Module):
     def __init__(
         self,
@@ -572,7 +562,6 @@ class DeformableTransformerDecoder(nn.Module):
         # self.box_head = MLP(self.channels, self.channels, 4, 3)
         # self.roi_align = RoIAlign(output_size=(7, 7), spatial_scale=1.0, sampling_ratio=-1)
 
-        
     @torch.amp.custom_fwd(cast_inputs=torch.float32, device_type='cuda')
     def forward(
         self,
@@ -590,12 +579,7 @@ class DeformableTransformerDecoder(nn.Module):
 
         # # sapm
         # bs, _, channels = query_pos.size()     # [2, 1800, 256]
-        # features = reverse_restore_feature_maps(src, src_spatial_shapes, bs, channels)  # 逆向恢复 特征图 
-        # Q_c0_1 = self.sapm_deformable_1(features)  # [2, 300, 256]
-        # Q_c0_2 = self.sapm_deformable_2(features)  # [2, 1500, 256]
-        # Q_c0 = Q_c0_1 if not self.training else torch.cat((Q_c0_1, Q_c0_2), dim=1)
-        # output = Q_c0
-        
+        # features = reverse_restore_feature_maps(src, src_spatial_shapes, bs, channels)
         
         intermediate = []    # 中间各层+首尾两层=6层输出的解码结果
         intermediate_reference_points = []      # 中间各层+首尾两层输出的参考点（不断矫正）

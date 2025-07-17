@@ -7,7 +7,7 @@ from torch.nn.parameter import Parameter
 
 import math
 from enum import Enum
-import pdb
+
 __all__ = ['Qmodes',  '_Conv2dQ', '_LinearQ', '_LinearQ_v2', '_ActQ',
            'truncation', 'get_sparsity_mask', 'FunStopGradient', 'round_pass', 'grad_scale']
 
@@ -109,8 +109,6 @@ def get_default_kwargs_q(kwargs_q, layer_type):
         pass
     elif isinstance(layer_type, _ActQ):
         pass
-        # default.update({
-        #     'signed': 'Auto'})
     else:
         assert NotImplementedError
         return
@@ -152,6 +150,7 @@ class _Conv2dQ(nn.Conv2d):
 
 class _LinearQ(nn.Linear):
     def __init__(self, in_features, out_features, bias=True, **kwargs_q):
+        #print(in_features, out_features)
         super(_LinearQ, self).__init__(in_features=in_features, out_features=out_features, bias=bias)
         self.kwargs_q = get_default_kwargs_q(kwargs_q, layer_type=self)
         self.nbits = kwargs_q['nbits']
@@ -209,12 +208,11 @@ class _ActQ(nn.Module):
             self.register_parameter('zero_point', None)
             return
         # self.signed = kwargs_q['signed']
-        # if in_features == 8:
-        #     pdb.set_trace()
         self.q_mode = kwargs_q['mode']
         is_symmetric = kwargs_q.get('is_symmetric', False)
-        self.alpha = Parameter(torch.Tensor(1))
-        self.zero_point = Parameter(torch.Tensor([0]))
+        if self.q_mode == Qmodes.layer_wise:
+            self.alpha = Parameter(torch.Tensor(1))
+            self.zero_point = Parameter(torch.Tensor([0]))
         if self.q_mode == Qmodes.kernel_wise:
             self.alpha = Parameter(torch.Tensor(in_features))
             self.zero_point = Parameter(torch.Tensor(in_features))

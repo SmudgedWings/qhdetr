@@ -22,14 +22,9 @@ from util.misc import NestedTensor, is_main_process
 
 from .position_encoding import build_position_encoding
 from .quant_resnet import *
-import pdb
-
-import pickle
-import os.path as osp
 import warnings
 # from .swin_transformer import SwinTransformer
 
-# pdb.set_trace()
 class FrozenBatchNorm2d(torch.nn.Module):
     """
     BatchNorm2d where the batch statistics and the affine parameters are fixed.
@@ -89,7 +84,6 @@ class BackboneBase(nn.Module):
         self, backbone: nn.Module, train_backbone: bool, return_interm_layers: bool
     ):
         super().__init__()
-        # pdb.set_trace()
         for name, parameter in backbone.named_parameters():
             if (
                 not train_backbone
@@ -98,7 +92,6 @@ class BackboneBase(nn.Module):
                 and "layer4" not in name
             ):
                 parameter.requires_grad_(False)
-        # pdb.set_trace()
         if return_interm_layers:
             # return_layers = {"layer1": "0", "layer2": "1", "layer3": "2", "layer4": "3"}
             return_layers = {"layer2": "0", "layer3": "1", "layer4": "2"}
@@ -111,7 +104,6 @@ class BackboneBase(nn.Module):
         self.body = IntermediateLayerGetter(backbone, return_layers=return_layers)
 
     def forward(self, tensor_list: NestedTensor):
-        # pdb.set_trace()
         xs = self.body(tensor_list.tensors)
         out: Dict[str, NestedTensor] = {}
         for name, x in xs.items():
@@ -133,12 +125,11 @@ class Backbone(BackboneBase):
         return_interm_layers: bool,
         dilation: bool,
     ):
-        # pdb.set_trace()
         norm_layer = FrozenBatchNorm2d
         backbone = resnet50(
             n_bit=n_bit,
             replace_stride_with_dilation=[False, False, dilation],
-            pretrained=is_main_process(), 
+            pretrained=is_main_process(),
             norm_layer=norm_layer,
         )
         # backbone = getattr(torchvision.models, name)(
@@ -273,27 +264,12 @@ def build_backbone(args):
     position_embedding = build_position_encoding(args)
     train_backbone = args.lr_backbone > 0
     return_interm_layers = args.masks or (args.num_feature_levels > 1)
-    # pdb.set_trace()
     if "resnet" in args.backbone:
         backbone = Backbone(
             args.backbone, args.n_bit, train_backbone, return_interm_layers, args.dilation,
         )
-    
-        load_pretrained_weights(backbone,'./pretrain/rest50-4bit-7346.pth')
-        # checkpoint = torch.load("./pretrain/4bit_resnet.pth", map_location="cpu")
-    
-        # ker2lay
-        # checkpoint = ker2lay(checkpoint)
-
-        # missing_keys, unexpected_keys = backbone.load_state_dict(
-        #     checkpoint, strict=False)
-        # print('missing_backbone:',missing_keys)
-        
-        # unexpected_keys = [
-        #     k
-        #     for k in unexpected_keys
-        #     if not (k.endswith("total_params") or k.endswith("total_ops"))
-        # ]
+        if args.load_q_RN50:
+            load_pretrained_weights(backbone,'./pretrain/4bit_resnet.pth')
     else:
         backbone = TransformerBackbone(
             args.backbone, train_backbone, return_interm_layers, args
@@ -301,19 +277,13 @@ def build_backbone(args):
     model = Joiner(backbone, position_embedding)
     return model
 
-
 def load_pretrained_weights(model, weight_path):
     
     checkpoint = torch.load(weight_path, map_location="cpu", weights_only=False)
 
-    checkpoint = checkpoint["model"]
-
-    if "state_dict" in checkpoint:
-        state_dict = checkpoint["state_dict"]
-    else:
-        state_dict = checkpoint
-        
-
+    checkpoint = checkpoint["model"] if "model" in checkpoint else checkpoint
+    state_dict = checkpoint["state_dict"] if "state_dict" in checkpoint else checkpoint
+    
     model_dict = model.state_dict()
     new_state_dict = OrderedDict()
     matched_layers, discarded_layers = [], []
@@ -322,7 +292,6 @@ def load_pretrained_weights(model, weight_path):
         # print(k)
         if k.startswith("module."):
             k = k[7:]  # discard module.
-            
         if k in model_dict and model_dict[k].size() == v.size():
             new_state_dict[k] = v
             matched_layers.append(k)

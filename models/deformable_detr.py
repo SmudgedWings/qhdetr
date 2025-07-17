@@ -57,7 +57,6 @@ class DeformableDETR(nn.Module):
         num_classes,
         num_feature_levels,
         aux_loss=True,
-        mec_loss=False,
         with_box_refine=False,
         two_stage=False,
         num_queries_one2one=300,
@@ -89,9 +88,6 @@ class DeformableDETR(nn.Module):
             self.query_embed = nn.Embedding(num_queries, hidden_dim * 2)
         elif mixed_selection:
             self.query_embed = nn.Embedding(num_queries, hidden_dim)
-        # sapm
-        # self.query_embed = None
-
         if num_feature_levels > 1:
             num_backbone_outs = len(backbone.strides)
             input_proj_list = []
@@ -125,7 +121,6 @@ class DeformableDETR(nn.Module):
             )
         self.backbone = backbone
         self.aux_loss = aux_loss
-        self.mec_loss = mec_loss
         self.with_box_refine = with_box_refine
         self.two_stage = two_stage
 
@@ -211,8 +206,6 @@ class DeformableDETR(nn.Module):
         # srcs:  list4  0=[bs,256,H/8,W/8] 1=[bs,256,H/16,W/16] 2=[bs,256,H/32,W/32] 3=[bs,256,H/64,W/64]
         # masks: list4  0=[bs,H/8,W/8] 1=[bs,H/16,W/16] 2=[bs,H/32,W/32] 3=[bs,H/64,W/64]
         # pos:   list4  0=[bs,256,H/8,W/8] 1=[bs,256,H/16,W/16] 2=[bs,256,H/32,W/32] 3=[bs,256,H/64,W/64]
-
-        # sapm 注释下面两句
         query_embeds = None
         if not self.two_stage or self.mixed_selection:
             query_embeds = self.query_embed.weight[0 : self.num_queries, :]
@@ -227,12 +220,11 @@ class DeformableDETR(nn.Module):
         self_attn_mask[0 : self.num_queries_one2one, self.num_queries_one2one :,] = True
 
         (
-            temp_features,
             hs,
-            init_reference, 
+            init_reference,
             inter_references,
             enc_outputs_class,
-            enc_outputs_coord_unact
+            enc_outputs_coord_unact,
         ) = self.transformer(srcs, masks, pos, query_embeds, self_attn_mask)
 
         outputs_classes_one2one = []
@@ -245,8 +237,6 @@ class DeformableDETR(nn.Module):
             else:
                 reference = inter_references[lvl - 1]
             reference = inverse_sigmoid(reference)
-            # print(hs[lvl].shape)
-            # import pdb;pdb.set_trace()
             outputs_class = self.class_embed[lvl](hs[lvl])
             tmp = self.bbox_embed[lvl](hs[lvl])
             if reference.shape[-1] == 4:
@@ -284,9 +274,6 @@ class DeformableDETR(nn.Module):
             out["aux_outputs_one2many"] = self._set_aux_loss(
                 outputs_classes_one2many, outputs_coords_one2many
             )
-
-        if self.mec_loss:
-            out["head_inputs"] = temp_features
 
         if self.two_stage:
             enc_outputs_coord = enc_outputs_coord_unact.sigmoid()
@@ -629,7 +616,6 @@ def build(args):
         num_classes=num_classes,
         num_feature_levels=args.num_feature_levels,
         aux_loss=args.aux_loss,
-        mec_loss=args.mec_loss,
         with_box_refine=args.with_box_refine,
         two_stage=args.two_stage,
         num_queries_one2one=args.num_queries_one2one,

@@ -15,7 +15,7 @@ from scipy.optimize import linear_sum_assignment
 from torch import nn
 
 from util.box_ops import box_cxcywh_to_xyxy, generalized_box_iou
-
+import pdb
 
 class HungarianMatcher(nn.Module):
     """This class computes an assignment between the targets and the predictions of the network
@@ -65,7 +65,7 @@ class HungarianMatcher(nn.Module):
         """
         with torch.no_grad():
             bs, num_queries = outputs["pred_logits"].shape[:2]
-            # pdb.set_trace()
+
             # We flatten to compute the cost matrices in a batch
             out_prob = outputs["pred_logits"].flatten(0, 1).sigmoid()
             out_bbox = outputs["pred_boxes"].flatten(
@@ -89,7 +89,7 @@ class HungarianMatcher(nn.Module):
 
             # Compute the L1 cost between boxes
             cost_bbox = torch.cdist(out_bbox, tgt_bbox, p=1)
-
+            # pdb.set_trace()
             # Compute the giou cost betwen boxes
             cost_giou = -generalized_box_iou(
                 box_cxcywh_to_xyxy(out_bbox), box_cxcywh_to_xyxy(tgt_bbox)

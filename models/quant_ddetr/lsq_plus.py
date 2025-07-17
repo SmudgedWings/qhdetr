@@ -115,7 +115,7 @@ class Conv2dLSQ(_Conv2dQ):
         # 2nd stage
         # else:
         return F.conv2d(x, w_q, self.bias, self.stride,
-                            self.padding, self.dilation, self.groups)
+                        self.padding, self.dilation, self.groups)
 
 class LinearLSQ_v3(_LinearQ):
     def __init__(self, in_features, out_features, bias=True, nbits_w=4, **kwargs):
@@ -217,7 +217,7 @@ class LinearLSQ(_LinearQ):
         # Method1:
         alpha = grad_scale(self.alpha, g)
         alpha = alpha.unsqueeze(1)
-        w_q = round_pass((self.weight / (alpha+1e-5)).clamp(Qn, Qp)) * alpha
+        w_q = round_pass((self.weight / alpha).clamp(Qn, Qp)) * alpha
         return w_q
 
     def forward(self, x):
@@ -304,7 +304,7 @@ class MCF_Function(torch.autograd.Function):
 
 
 class ActLSQ(_ActQ):
-    def __init__(self, in_features, nbits_a=4, mode=Qmodes.layer_wise, is_symmetric=False, **kwargs):
+    def __init__(self, in_features, nbits_a=4, mode=Qmodes.kernel_wise, is_symmetric=False, **kwargs):
         super(ActLSQ, self).__init__(in_features=in_features, nbits=nbits_a, mode=mode,is_symmetric=is_symmetric)
         # print(self.alpha.shape, self.zero_point.shape)
     def forward(self, x):
@@ -346,10 +346,10 @@ class ActLSQ(_ActQ):
         # x = round_pass((x / alpha).clamp(Qn, Qp)) * alpha
 
         if self.q_mode == Qmodes.kernel_wise:
-            if len(x.shape)==2:
+            if len(x.shape)==2: # [B, C]
                 alpha = alpha.unsqueeze(0)
                 zero_point = zero_point.unsqueeze(0)
-            elif len(x.shape)==3:
+            elif len(x.shape)==3:  # [B, C, L]
                 if x.shape[0] == alpha.shape[0]:
                     alpha = alpha.unsqueeze(1).unsqueeze(2)
                     zero_point = zero_point.unsqueeze(1).unsqueeze(2)
@@ -359,7 +359,7 @@ class ActLSQ(_ActQ):
                 elif x.shape[2] == alpha.shape[0]:
                     alpha = alpha.unsqueeze(0).unsqueeze(0)
                     zero_point = zero_point.unsqueeze(0).unsqueeze(0)
-            elif len(x.shape)==4:
+            elif len(x.shape)==4:  # [B, C, H, W]
                 # A, B, C, D = x.shape
                 if x.shape[0] == alpha.shape[0]:
                     alpha = alpha.unsqueeze(1).unsqueeze(2).unsqueeze(3)
@@ -373,23 +373,6 @@ class ActLSQ(_ActQ):
                 elif x.shape[3] == alpha.shape[0]:
                     alpha = alpha.unsqueeze(0).unsqueeze(0).unsqueeze(0)
                     zero_point = zero_point.unsqueeze(0).unsqueeze(0).unsqueeze(0)
-            elif len(x.shape)==5:
-                # A, B, C, D, E = x.shape
-                if x.shape[0] == alpha.shape[0]:
-                    alpha = alpha.unsqueeze(1).unsqueeze(2).unsqueeze(3).unsqueeze(4)
-                    zero_point = zero_point.unsqueeze(1).unsqueeze(2).unsqueeze(3).unsqueeze(4)
-                elif x.shape[1] == alpha.shape[0]:
-                    alpha = alpha.unsqueeze(0).unsqueeze(2).unsqueeze(3).unsqueeze(4)
-                    zero_point = zero_point.unsqueeze(0).unsqueeze(2).unsqueeze(3).unsqueeze(4)
-                elif x.shape[2] == alpha.shape[0]:
-                    alpha = alpha.unsqueeze(0).unsqueeze(0).unsqueeze(3).unsqueeze(4)
-                    zero_point = zero_point.unsqueeze(0).unsqueeze(0).unsqueeze(3).unsqueeze(4)
-                elif x.shape[3] == alpha.shape[0]:
-                    alpha = alpha.unsqueeze(0).unsqueeze(0).unsqueeze(0).unsqueeze(4)
-                    zero_point = zero_point.unsqueeze(0).unsqueeze(0).unsqueeze(0).unsqueeze(4)
-                elif x.shape[4] == alpha.shape[0]:
-                    alpha = alpha.unsqueeze(0).unsqueeze(0).unsqueeze(0).unsqueeze(0)
-                    zero_point = zero_point.unsqueeze(0).unsqueeze(0).unsqueeze(0).unsqueeze(0)
 
 
         # print(alpha.shape, zero_point.shape)
