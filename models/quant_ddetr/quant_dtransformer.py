@@ -562,11 +562,11 @@ class DeformableTransformerDecoder(nn.Module):
         self.bbox_embed = None
         self.class_embed = None
         
-        # # sapm
-        # self.channels = 256
-        # self.sapm_local = SAPM(self.channels, 1)
-        # self.box_head = MLP(self.channels, self.channels, 4, 3)
-        # self.roi_align = RoIAlign(output_size=(7, 7), spatial_scale=1.0, sampling_ratio=-1)
+        # sapm
+        self.channels = 256
+        self.sapm_local = SAPM(self.channels, 1)
+        self.box_head = MLP(self.channels, self.channels, 4, 3)
+        self.roi_align = RoIAlign(output_size=(7, 7), spatial_scale=1.0, sampling_ratio=-1)
 
     @torch.amp.custom_fwd(cast_inputs=torch.float32, device_type='cuda')
     def forward(
@@ -584,8 +584,8 @@ class DeformableTransformerDecoder(nn.Module):
         output = tgt 
 
         # sapm
-        # bs, _, channels = query_pos.size()     # [2, 1800, 256]
-        # features = reverse_restore_feature_maps(src, src_spatial_shapes, bs, channels)  # 逆向恢复 特征图 
+        bs, _, channels = query_pos.size()     # [2, 1800, 256]
+        features = reverse_restore_feature_maps(src, src_spatial_shapes, bs, channels)  # 逆向恢复 特征图 
  
         intermediate = []
         intermediate_reference_points = []
@@ -625,11 +625,11 @@ class DeformableTransformerDecoder(nn.Module):
                 )
 
                 # sapm
-                # outputs_coord = self.box_head(output).sigmoid()  # [2, 300, 256] -> [2, 300, 4]
-                # rois = convert_to_rois(outputs_coord,src_spatial_shapes[3]) # [2*300, 5]
-                # pooled_feature = self.roi_align(features[3], rois)  # [2*300, 256, 7, 7]
-                # Q_c_local = self.sapm_local(pooled_feature).view(bs, -1, channels)  # [2*300, 256, 7, 7] ->  [2, 300, 256]
-                # output = Q_c_local + output
+                outputs_coord = self.box_head(output).sigmoid()  # [2, 300, 256] -> [2, 300, 4]
+                rois = convert_to_rois(outputs_coord,src_spatial_shapes[3]) # [2*300, 5]
+                pooled_feature = self.roi_align(features[-1], rois)  # [2*300, 256, 7, 7]
+                Q_c_local = self.sapm_local(pooled_feature).view(bs, -1, channels)  # [2*300, 256, 7, 7] ->  [2, 300, 256]
+                output = Q_c_local + output
                
             # plot_distribution(output, title=f'decoder.{lid}.co_attn.output', save_path=os.path.join('/data/nvme8/zhangbilang/',f'qddetr_decoder{lid}_co_attn_output.png'))
             

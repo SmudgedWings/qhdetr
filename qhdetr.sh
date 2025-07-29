@@ -3,8 +3,8 @@
 
 # CUDA_VISIBLE_DEVICES=0 \
 
-export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8 
-GPUS_PER_NODE=8 ./tools/run_dist_launch.sh 8 ./configs/qhdetr.sh \
+export CUDA_VISIBLE_DEVICES=0
+GPUS_PER_NODE=1 ./tools/run_dist_launch.sh 1 ./configs/qhdetr.sh \
     --dataset_file voc \
     --coco_path /data/nvme7/zhangbilang/datasets/VOCdevkit \
     --batch_size 1 \

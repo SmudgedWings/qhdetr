@@ -2,7 +2,7 @@
 
 set -x
 
-EXP_DIR=exps/qddetr
+EXP_DIR=exps/w4a4/qddetr
 PY_ARGS=${@:1}
 
 python -u main.py \
