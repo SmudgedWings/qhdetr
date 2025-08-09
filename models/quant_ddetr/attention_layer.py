@@ -345,7 +345,6 @@ def multi_head_attention_forward(query: Tensor,
 
     v = v_act(v)
 
-
     attn_output = attn_output_weights @ v 
     attn_output = attn_output.view(bsz * num_heads, tgt_len, head_dim)
     assert list(attn_output.size()) == [bsz * num_heads, tgt_len, head_dim]

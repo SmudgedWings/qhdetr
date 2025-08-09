@@ -23,53 +23,50 @@ class AMP(nn.Module):   # c,h,w -> 1,h,w
         self.conv3 = SeparableConv2dLSQ(in_channels, q, kernel_size=3, padding=1, nbits_w=4)
         self.gn1 = nn.GroupNorm(groups, in_channels)
         self.gn2 = nn.GroupNorm(groups, in_channels)
-        self.prelu1 = nn.PReLU()
-        self.prelu2 = nn.PReLU()
+        self.prelu1 = nn.PReLU(in_channels)
+        self.prelu2 = nn.PReLU(in_channels)
         self.tau = tau 
 
     def forward(self, x):
         x = self.prelu1(self.gn1(self.conv1(x)))
         x = self.prelu2(self.gn2(self.conv2(x)))
         x = self.conv3(x)
-        # 对空间维度进行softmax归一化
-        _, _, h, w = x.size()
-        x = x.flatten(start_dim=2)  # (batch_size, q, h*w)
-        x = F.softmax(x * self.tau, dim=2)  # 对h*w维度进行softmax
-        x = x.view(x.size(0), x.size(1), h, w)  # 还原回(batch_size, q, h, w)
+    
+        b, c, h, w = x.size()
+        x = x.flatten(start_dim=2) 
+        x = F.softmax(x * self.tau, dim=2)  
+        x = x.view(b, c, h, w) 
         return x
     
 class WP(nn.Module):
     def __init__(self):
         super(WP, self).__init__()
-        # self.A_act = ActLSQ(nbits_a=4, in_features=49, is_symmetric=True) # h*w
-        self.A_act = ActLSQ(nbits_a=4, in_features=49, is_symmetric=True, mode=Qmodes.kernel_wise) # h*w
-        self.F_act = ActLSQ(nbits_a=4, in_features=256) # c
+        
+        self.A_act = ActLSQ(nbits_a=4, in_features=49)
+        self.F_act = ActLSQ(nbits_a=4, in_features=49) 
 
     def forward(self, F, A):
-        # A: b x h*w     F: b x h*w x c  O: b x c
-        batch_size, c, h, w = F.size()
+        b, c, h, w = F.shape
         q = A.size(1)
-        
-        F = F.view(batch_size, c, h * w).permute(0, 2, 1)  # (batch_size, h*w, c)
-        A = A.view(batch_size, q, h * w)  # (batch_size, q, h*w)             
-
+        F = F.view(b, c, h * w).permute(0, 2, 1)  
+        A = A.view(b, q, h * w)              
         A = self.A_act(A)
-        # print(self.A_act.alpha)
         F = self.F_act(F)
-        F_P = torch.bmm(A, F)  # (batch_size, q, c)
-        
-        return F_P
+        return torch.bmm(A, F)
     
 class CR(nn.Module):
     def __init__(self, in_channels=256):
         super(CR, self).__init__()
         self.fc1 = LinearLSQ(in_channels, in_channels, nbits_w=4, bias=True)
         self.fc2 = LinearLSQ(in_channels, in_channels, nbits_w=4, bias=True)
-        self.prelu = nn.PReLU()
+        self.prelu = nn.PReLU(in_channels)
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
-        x = self.prelu(self.fc1(x))
+        x = self.fc1(x)
+        x = x.transpose(1, 2)
+        x = self.prelu(x)
+        x = x.transpose(1, 2)
         x = self.sigmoid(self.fc2(x))
         return x
     
@@ -83,7 +80,6 @@ class SAPM(nn.Module): # [2*300, 256, 7, 7] ->  [2, 300, 256]
         self.F_P_act = ActLSQ(nbits_a=4,in_features=in_channels)
 
     def forward(self, F):
-        import pdb;pdb.set_trace()
         A = self.amp(F)
         F_P = self.wp(F, A)
         F_C = self.cr(F_P)

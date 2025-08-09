@@ -2,7 +2,7 @@
 
 set -x
 # EXP_DIR=exps/ddetr_n300
-EXP_DIR=exps/ddetr_n1800
+EXP_DIR=exps/w32a32/ddetr_n1800
 PY_ARGS=${@:1}
 
 python -u main.py \
@@ -15,7 +15,4 @@ python -u main.py \
     --k_one2many 0 \
     --epochs 12 \
     --lr_drop 11 \
-    --dropout 0.0 \
-    --mixed_selection \
-    --look_forward_twice \
     ${PY_ARGS}

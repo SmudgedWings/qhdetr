@@ -72,6 +72,7 @@ class DeformableTransformer(nn.Module):
         look_forward_twice=False,
         mixed_selection=False,
         use_checkpoint=False,
+        use_sapm=False,
     ):
         super().__init__()
 
@@ -110,6 +111,7 @@ class DeformableTransformer(nn.Module):
             return_intermediate_dec,
             look_forward_twice,
             use_checkpoint,
+            use_sapm=use_sapm
         )
 
         self.level_embed = nn.Parameter(torch.Tensor(num_feature_levels, d_model))
@@ -551,6 +553,7 @@ class DeformableTransformerDecoder(nn.Module):
         return_intermediate=False,
         look_forward_twice=False,
         use_checkpoint=False,
+        use_sapm=False,
     ):
         super().__init__()
         self.layers = _get_clones(decoder_layer, num_layers)
@@ -561,12 +564,13 @@ class DeformableTransformerDecoder(nn.Module):
         # hack implementation for iterative bounding box refinement and two-stage Deformable DETR
         self.bbox_embed = None
         self.class_embed = None
-        
-        # # sapm
-        # self.channels = 256
-        # self.sapm_local = SAPM(self.channels, 1)
-        # self.box_head = MLP(self.channels, self.channels, 4, 3)
-        # self.roi_align = RoIAlign(output_size=(7, 7), spatial_scale=1.0, sampling_ratio=-1)
+        self.use_sapm = use_sapm
+
+        if self.use_sapm:
+            self.channels = 256
+            self.sapm_local = SAPM(self.channels, 1)
+            self.box_head = MLP(self.channels, self.channels, 4, 3)
+            self.roi_align = RoIAlign(output_size=(7, 7), spatial_scale=1.0, sampling_ratio=-1)
 
     @torch.amp.custom_fwd(cast_inputs=torch.float32, device_type='cuda')
     def forward(
@@ -582,10 +586,9 @@ class DeformableTransformerDecoder(nn.Module):
         self_attn_mask=None,
     ):
         output = tgt 
-
-        # sapm
-        # bs, _, channels = query_pos.size()     # [2, 1800, 256]
-        # features = reverse_restore_feature_maps(src, src_spatial_shapes, bs, channels)  # 逆向恢复 特征图 
+        if self.use_sapm:
+            bs, _, channels = query_pos.size()     # [2, 1800, 256]
+            features = reverse_restore_feature_maps(src, src_spatial_shapes, bs, channels)
  
         intermediate = []
         intermediate_reference_points = []
@@ -625,13 +628,12 @@ class DeformableTransformerDecoder(nn.Module):
                 )
 
                 # sapm
-                # outputs_coord = self.box_head(output).sigmoid()  # [2, 300, 256] -> [2, 300, 4]
-                # rois = convert_to_rois(outputs_coord,src_spatial_shapes[3]) # [2*300, 5]
-                # pooled_feature = self.roi_align(features[3], rois)  # [2*300, 256, 7, 7]
-                # Q_c_local = self.sapm_local(pooled_feature).view(bs, -1, channels)  # [2*300, 256, 7, 7] ->  [2, 300, 256]
-                # output = Q_c_local + output
-               
-            # plot_distribution(output, title=f'decoder.{lid}.co_attn.output', save_path=os.path.join('/data/nvme8/zhangbilang/',f'qddetr_decoder{lid}_co_attn_output.png'))
+                if self.use_sapm:
+                    outputs_coord = self.box_head(output).sigmoid()  # [2, 300, 256] -> [2, 300, 4]
+                    rois = convert_to_rois(outputs_coord,src_spatial_shapes[3]) # [2*300, 5]
+                    pooled_feature = self.roi_align(features[-1], rois)  # [2*300, 256, 7, 7]
+                    Q_c_local = self.sapm_local(pooled_feature).view(bs, -1, channels)  # [2*300, 256, 7, 7] ->  [2, 300, 256]
+                    output = Q_c_local + output
             
             # hack implementation for iterative bounding box refinement
             if self.bbox_embed is not None:
@@ -696,5 +698,6 @@ def build_deforamble_transformer(args):
         mixed_selection=args.mixed_selection,
         look_forward_twice=args.look_forward_twice,
         use_checkpoint=args.use_checkpoint,
+        use_sapm=args.use_sapm
     )
 

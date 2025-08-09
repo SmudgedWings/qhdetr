@@ -14,7 +14,6 @@
 import copy
 from typing import Optional, List
 import math
-import os
 
 import torch
 import torch.nn.functional as F
@@ -28,7 +27,6 @@ from .analysis import *
 
 from torchvision.ops import RoIAlign
 
-# sapm
 def reverse_restore_feature_maps(src, src_spatial_shapes, bs, channels):
     features = []
     start_index = 0
@@ -618,19 +616,7 @@ class DeformableTransformerDecoder(nn.Module):
                     src_padding_mask,
                     self_attn_mask,
                 )
-                
-                # # sapm
-                # outputs_coord = self.box_head(output).sigmoid()  # [2, 300, 256] -> [2, 300, 4]
-                # pooled_features = []
-                # for feature,feature_shape in zip(features,src_spatial_shapes):
-                #     rois = convert_to_rois(outputs_coord,feature_shape) # [2*300, 5]
-                #     pooled_feature = self.roi_align(feature, rois)  # [2*300, 256, 7, 7]
-                #     pooled_features.append(pooled_feature)
-                # Q_c_local = self.sapm_local(pooled_features).view(bs, -1, channels) # [2*300, 1, 256] -> [2, 300, 256]
-                # output = Q_c_local + output
-            
-            # plot_distribution(output, title=f'decoder.{lid}.co_attn.output', save_path=os.path.join('/data/nvme8/zhangbilang/',f'decoder{lid}_co_attn_output.png'))
-            
+
             # hack implementation for iterative bounding box refinement
             # iterative bounding box refinement, 每层参考点都会根据上一层的输出结果进行矫正
             if self.bbox_embed is not None:

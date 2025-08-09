@@ -16,7 +16,6 @@ import datasets.samplers as samplers
 from datasets import build_dataset, get_coco_api_from_dataset
 from engine import evaluate, train_one_epoch
 from models import build_model, build_quant_model
-import pdb
 import wandb
 
 from models.analysis import *
@@ -50,6 +49,8 @@ def get_args_parser():
     parser.add_argument('--quant', action='store_true', help="")
     parser.add_argument('--n_bit', default=4, type=int, help="")
     parser.add_argument('--load_q_RN50', default=False, action='store_true', help="")
+    parser.add_argument('--use_sapm', default=False, action='store_true', help="")
+
     
     # Variants of Deformable DETR
     parser.add_argument("--with_box_refine", default=False, action="store_true")
@@ -274,14 +275,6 @@ def main(args):
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print("number of params:", n_parameters)
 
-    # size_mb = get_model_size(model)
-    # # flops_g, params_m = get_flops_and_params(model, (1, 3, 224, 224))
-    # print(f"Model Size: {size_mb:.2f} MB")
-    # # print(f"FLOPs: {flops_g:.2f} G")
-    # # print(f"Parameters: {params_m:.2f} M")
-    # quant_bits = 4 if args.quant else 32
-    # calculate_model_flops(model, quant_bits)
-
     dataset_train = build_dataset(image_set="train", args=args)
     if not args.eval_in_training_set:
         dataset_val = build_dataset(
@@ -434,7 +427,7 @@ def main(args):
             for pg, pg_old in zip(optimizer.param_groups, p_groups):
                 pg["lr"] = pg_old["lr"]
                 pg["initial_lr"] = pg_old["initial_lr"]
-            # print(optimizer.param_groups)
+            print(optimizer.param_groups)
             lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
             # todo: this is a hack for doing experiment that resume from checkpoint and also modify lr scheduler (e.g., decrease lr in advance).
             args.override_resumed_lr_drop = True

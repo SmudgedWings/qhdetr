@@ -85,16 +85,6 @@ def train_one_epoch(
         with torch.amp.autocast("cuda") if use_fp16 else torch.amp.autocast("cuda", enabled=False):
             if use_fp16:
                 optimizer.zero_grad()
-
-            # from thop import profile
-            # print(samples.tensors.shape)  # [1, 3, 608, 810]
-            # samples_tensors = torch.load("samples_tensors.pt")
-            # print(samples_tensors.shape)
-            # model.eval()
-            # flops, params = profile(model, inputs=(samples_tensors.cuda(),), verbose=False)
-            # flops_g = flops / 1e9  # 转成Giga-Operations
-            # print(f"FLOPs: {flops_g:.2f}G")
-            # import pdb;pdb.set_trace()
             outputs = model(samples)  # samples.tensors [2, 3, 800, 1066]  outputs["head_inputs"] [2, 17821, 256]
 
             if k_one2many > 0:
@@ -181,7 +171,6 @@ def evaluate(
     # disable the one-to-many branch queries
     # save them frist
 
-    # pdb.set_trace()
     if distributed:
         save_num_queries = model.module.num_queries
         save_two_stage_num_proposals = model.module.transformer.two_stage_num_proposals
