@@ -88,7 +88,7 @@ class SAPM(nn.Module): # [2*300, 256, 7, 7] ->  [2, 300, 256]
         F_P = self.F_P_act(F_P)
 
         # F_P: b x q x c 
-        F_O = F_C * F_P + F_P
+        F_O = F_C * F_P
         return F_O
     
 class MLP(nn.Module):
