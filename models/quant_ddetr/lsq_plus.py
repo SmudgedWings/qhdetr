@@ -373,6 +373,23 @@ class ActLSQ(_ActQ):
                 elif x.shape[3] == alpha.shape[0]:
                     alpha = alpha.unsqueeze(0).unsqueeze(0).unsqueeze(0)
                     zero_point = zero_point.unsqueeze(0).unsqueeze(0).unsqueeze(0)
+            elif len(x.shape)==5:
+                # A, B, C, D, E = x.shape
+                if x.shape[0] == alpha.shape[0]:
+                    alpha = alpha.unsqueeze(1).unsqueeze(2).unsqueeze(3).unsqueeze(4)
+                    zero_point = zero_point.unsqueeze(1).unsqueeze(2).unsqueeze(3).unsqueeze(4)
+                elif x.shape[1] == alpha.shape[0]:
+                    alpha = alpha.unsqueeze(0).unsqueeze(2).unsqueeze(3).unsqueeze(4)
+                    zero_point = zero_point.unsqueeze(0).unsqueeze(2).unsqueeze(3).unsqueeze(4)
+                elif x.shape[2] == alpha.shape[0]:
+                    alpha = alpha.unsqueeze(0).unsqueeze(0).unsqueeze(3).unsqueeze(4)
+                    zero_point = zero_point.unsqueeze(0).unsqueeze(0).unsqueeze(3).unsqueeze(4)
+                elif x.shape[3] == alpha.shape[0]:
+                    alpha = alpha.unsqueeze(0).unsqueeze(0).unsqueeze(0).unsqueeze(4)
+                    zero_point = zero_point.unsqueeze(0).unsqueeze(0).unsqueeze(0).unsqueeze(4)
+                elif x.shape[4] == alpha.shape[0]:
+                    alpha = alpha.unsqueeze(0).unsqueeze(0).unsqueeze(0).unsqueeze(0)
+                    zero_point = zero_point.unsqueeze(0).unsqueeze(0).unsqueeze(0).unsqueeze(0)
 
 
         # print(alpha.shape, zero_point.shape)

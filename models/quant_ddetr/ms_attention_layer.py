@@ -60,7 +60,14 @@ def ms_deform_attn_core_pytorch(
     
     # sampling_value_list  [4 16 32 14288 4]
     value_mult = torch.stack(sampling_value_list, dim=-2).flatten(-2)
+    
+    value_mult = value_mult.reshape(
+        N_, M_, D_, Lq_, L_ * P_
+    )
     value_mult = v_act(value_mult)
+    value_mult = value_mult.reshape(
+        N_ * M_, D_, Lq_, L_ * P_
+    )
     output = (
         (value_mult * attention_weights)
         .sum(-1)
